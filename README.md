@@ -1,48 +1,73 @@
-# simulation-frontend
+# React + TypeScript + Vite
 
-## User-Interactions 
-We suggest having a user-json looking sth like this: 
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+
+## React Compiler
+
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
-{
-  "user_key": <String>, 
-  "bloc": {
-    "name": <String> 
-    "write": <bool> // if true, can create and modify `Bases`
-  }, 
-  "zone": {
-    "name": <String> 
-    "write": <bool> // if true, can create and modify `Trusts`
-  }
-}
+
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
-The `user_key` should be part of all request headers.
-
-#### Creating Trusts
-When selecting a `Placement`, if a user has "write" access for the `Zone` the placement is associated with, the user can: 
-- suggest "financiers" who help finance the expenses for the `Trust` to a certain percentage (=> input fields: financier key (text), percentage (number))
-- multiple financiers possible
-- => create the `Trust`
-
-API:
-- `POST /api/trusts` (payload: `{placementId: <placement_id>,  payment: {financierId: <financier_id (str)>, percentage: <value (int)>}`)
-
-#### Creating Bases 
-When selecting a `Placement`, if a user has "write" access for the `Bloc` the placement is associated with, the user can: 
-- suggest "financiers" who help finance the expenses for the `Base` to a certain percentage (=> input fields: financier key (text), percentage (number))
-- multiple financiers possible
-- => create the `Base`
-
-API: 
-- `POST /api/bases` (payload: `{placementId: <placement_id>,  payment: {financierId: <financier_id (str)>, percentage: <value (int)>}`)
-
-#### Updating Bases
-When selecting a `Base`, if a user has "write" access for the `Bloc` the base is associated with, the user can: 
-- activate/deactivate the base (checkbox)
-- prioritise the `Base` (checkbox)
-  
-API: 
-- `PATCH /api/bases/{id}` Payload: `{(optional) prioritized: <true|false>, (optional) target: <trust|base>}`
-
-#### Changing Laws (Enhancement)
-When selecting a `Zone`, if a user has "write" access for the `Zone`, the user can: 
-- select from a list of "social laws" and implement/ or withdraw them

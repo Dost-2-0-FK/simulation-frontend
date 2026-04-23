@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+:root {
+  /* CSS variables — extend as the UI is built out */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+}
