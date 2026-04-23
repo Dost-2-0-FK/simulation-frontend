@@ -25,6 +25,17 @@ export default function MapView({ onMapReady }: Props) {
       minZoom: 1.5,
     })
 
+    map.on('style.load', () => 
+    {
+      console.log("Before: ", map.getProjection());
+
+      map.setProjection({
+          type: 'mercator'
+      });
+
+      console.log("After: ", map.getProjection());
+    });
+
     map.on('load', () => {
       // Add the world map jpg as a geographic image source
       map.addSource('world-map', {
@@ -44,6 +55,32 @@ export default function MapView({ onMapReady }: Props) {
         type: 'raster',
         source: 'world-map',
         paint: { 'raster-opacity': 1 },
+      })
+      
+      const geojsonUrl = new URL('../assets/geozones/germanyaustria.geo.json', import.meta.url).href
+      
+      map.addSource('germany-austria', {
+        type: 'geojson',
+        data: geojsonUrl,
+      })
+      map.addLayer({
+        id: 'germany-austria-fill',
+        type: 'fill',
+        source: 'germany-austria',
+        paint: {
+          'fill-color': '#22c55e',
+          'fill-opacity': 0.22,
+        }
+      })
+
+      map.addLayer({
+        id: 'germany-austria-outline',
+        type: 'line',
+        source: 'germany-austria',
+        paint: {
+          'line-color': '#16a34a',
+          'line-width': 2,
+        }
       })
 
       onMapReady?.(map)
