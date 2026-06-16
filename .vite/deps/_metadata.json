@@ -1,8 +1,146 @@
 {
-  "hash": "28690ece",
+  "hash": "0d3e1701",
   "configHash": "12bd5325",
-  "lockfileHash": "e3b0c442",
-  "browserHash": "c4ac1c44",
-  "optimized": {},
-  "chunks": {}
+  "lockfileHash": "664b58b2",
+  "browserHash": "8671c2c0",
+  "optimized": {
+    "@tanstack/react-query": {
+      "src": "../../node_modules/@tanstack/react-query/build/modern/index.js",
+      "file": "@tanstack_react-query.js",
+      "fileHash": "a17921e4",
+      "needsInterop": false
+    },
+    "maplibre-gl": {
+      "src": "../../node_modules/maplibre-gl/dist/maplibre-gl.js",
+      "file": "maplibre-gl.js",
+      "fileHash": "0390cdc9",
+      "needsInterop": true
+    },
+    "pixi.js": {
+      "src": "../../node_modules/pixi.js/lib/index.mjs",
+      "file": "pixi__js.js",
+      "fileHash": "016c4bc0",
+      "needsInterop": false
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "697570a3",
+      "needsInterop": true
+    },
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "47c83697",
+      "needsInterop": true
+    },
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "f33ef179",
+      "needsInterop": true
+    }
+  },
+  "chunks": {
+    "BitmapFont-BFFENS3N": {
+      "file": "BitmapFont-BFFENS3N.js",
+      "isDynamicEntry": true
+    },
+    "BitmapFont-aVoagFtP": {
+      "file": "BitmapFont-aVoagFtP.js",
+      "isDynamicEntry": false
+    },
+    "BufferResource-BCRC4T6S": {
+      "file": "BufferResource-BCRC4T6S.js",
+      "isDynamicEntry": false
+    },
+    "Cache-CPl-uHT6": {
+      "file": "Cache-CPl-uHT6.js",
+      "isDynamicEntry": false
+    },
+    "CanvasPool-DfAB6fP0": {
+      "file": "CanvasPool-DfAB6fP0.js",
+      "isDynamicEntry": false
+    },
+    "CanvasRenderer-BSf9_4nn": {
+      "file": "CanvasRenderer-BSf9_4nn.js",
+      "isDynamicEntry": false
+    },
+    "CanvasRenderer-Bh4NUtK4": {
+      "file": "CanvasRenderer-Bh4NUtK4.js",
+      "isDynamicEntry": true
+    },
+    "FederatedEventTarget-ChQBudD7": {
+      "file": "FederatedEventTarget-ChQBudD7.js",
+      "isDynamicEntry": false
+    },
+    "Filter-G-Qp4Pxj": {
+      "file": "Filter-G-Qp4Pxj.js",
+      "isDynamicEntry": false
+    },
+    "FilterSystem-mR0Du836": {
+      "file": "FilterSystem-mR0Du836.js",
+      "isDynamicEntry": false
+    },
+    "GCManagedHash-C1jrwqvT": {
+      "file": "GCManagedHash-C1jrwqvT.js",
+      "isDynamicEntry": false
+    },
+    "Geometry-DB9p-9Zs": {
+      "file": "Geometry-DB9p-9Zs.js",
+      "isDynamicEntry": false
+    },
+    "GraphicsContext-Ck9mPhXJ": {
+      "file": "GraphicsContext-Ck9mPhXJ.js",
+      "isDynamicEntry": false
+    },
+    "ImageSource-AkErQihB": {
+      "file": "ImageSource-AkErQihB.js",
+      "isDynamicEntry": false
+    },
+    "RenderTargetSystem-DugeqXGU": {
+      "file": "RenderTargetSystem-DugeqXGU.js",
+      "isDynamicEntry": false
+    },
+    "WebGLRenderer-BJ6zV4dM": {
+      "file": "WebGLRenderer-BJ6zV4dM.js",
+      "isDynamicEntry": false
+    },
+    "WebGLRenderer-BrSSTXKN": {
+      "file": "WebGLRenderer-BrSSTXKN.js",
+      "isDynamicEntry": true
+    },
+    "WebGPURenderer-CY1TWS6L": {
+      "file": "WebGPURenderer-CY1TWS6L.js",
+      "isDynamicEntry": false
+    },
+    "WebGPURenderer-DDsfpIHA": {
+      "file": "WebGPURenderer-DDsfpIHA.js",
+      "isDynamicEntry": true
+    },
+    "browserAll-BjW4kD2t": {
+      "file": "browserAll-BjW4kD2t.js",
+      "isDynamicEntry": true
+    },
+    "canvasUtils-BeK58zkb": {
+      "file": "canvasUtils-BeK58zkb.js",
+      "isDynamicEntry": false
+    },
+    "chunk-BVTlhY3a": {
+      "file": "chunk-BVTlhY3a.js",
+      "isDynamicEntry": false
+    },
+    "getTextureBatchBindGroup-CP6GxUzu": {
+      "file": "getTextureBatchBindGroup-CP6GxUzu.js",
+      "isDynamicEntry": false
+    },
+    "init-DLJyhTtO": {
+      "file": "init-DLJyhTtO.js",
+      "isDynamicEntry": false
+    },
+    "webworkerAll-Du3cOy-H": {
+      "file": "webworkerAll-Du3cOy-H.js",
+      "isDynamicEntry": true
+    }
+  }
 }

@@ -1,0 +1,126 @@
+
+<h2 class="sr-only">Map placement icon candidates for East vs West strategy game</h2>
+<style>
+.ic{display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;padding:8px 6px;border-radius:var(--border-radius-md);border:0.5px solid transparent;width:82px;box-sizing:border-box}
+.ic:hover{background:var(--color-background-secondary);border-color:var(--color-border-secondary)}
+.ic.sel{border-color:#185FA5;background:var(--color-background-info)}
+.ic-lbl{font-size:11px;color:var(--color-text-secondary);text-align:center;line-height:1.3}
+.ic-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:1.75rem}
+.sec-lbl{font-size:11px;font-weight:500;color:var(--color-text-tertiary);letter-spacing:.08em;text-transform:uppercase;margin:0 0 8px}
+.ctrl-btn{padding:3px 11px;font-size:12px;border-radius:99px;border:0.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-secondary);cursor:pointer;line-height:1.6}
+.ctrl-btn.on{background:var(--color-text-primary);color:var(--color-background-primary);border-color:transparent}
+.credit{font-size:11px;color:var(--color-text-tertiary);margin-top:.5rem}
+@keyframes pr{0%,100%{opacity:.3}50%{opacity:.85}}
+.pring{animation:pr 1.6s ease-in-out infinite}
+</style>
+
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1.75rem;align-items:center">
+  <span style="font-size:12px;color:var(--color-text-secondary)">Bloc:</span>
+  <button class="ctrl-btn on" data-group="bloc" onclick="setBloc('west',this)">West</button>
+  <button class="ctrl-btn" data-group="bloc" onclick="setBloc('east',this)">East</button>
+  <span style="margin-left:14px;font-size:12px;color:var(--color-text-secondary)">State:</span>
+  <button class="ctrl-btn on" data-group="state" onclick="setSt('normal',this)">Normal</button>
+  <button class="ctrl-btn" data-group="state" onclick="setSt('priority',this)">Prioritised</button>
+  <button class="ctrl-btn" data-group="state" onclick="setSt('disabled',this)">Disabled</button>
+</div>
+
+<p class="sec-lbl">Empty placement ◯ — three style options</p>
+<div class="ic-row" id="empty-row"></div>
+
+<p class="sec-lbl">Base ⬡ — hexagon marker</p>
+<div class="ic-row" id="base-row"></div>
+
+<p class="sec-lbl">Trust ◇ — diamond marker</p>
+<div class="ic-row" id="trust-row"></div>
+
+<p class="credit">Icons: <a href="https://game-icons.net" target="_blank">game-icons.net</a> by Delapouite, CC BY 3.0</p>
+
+<script>
+const clrs={
+  west:{bg:'#185FA5',icon:'#fff',ring:'#85B7EB'},
+  east:{bg:'#993C1D',icon:'#fff',ring:'#F0997B'},
+  disabled:{bg:'#888780',icon:'#D3D1C7',ring:'#B4B2A9'}
+};
+
+const paths={
+'military-fort':'M256 21c-66.72 0-121 54.28-121 121s54.28 121 121 121 121-54.28 121-121S322.72 21 256 21zm0 18c56.992 0 103 46.008 103 103s-46.008 103-103 103-103-46.008-103-103S199.008 39 256 39zm0 11.75l-69.4 52.05 10.8 14.4L256 73.25l58.6 43.95 10.8-14.4L256 50.75zm0 48l-69.4 52.05 10.8 14.4 58.6-43.95 58.6 43.95 10.8-14.4L256 98.75zm0 48l-69.4 52.05 10.8 14.4 58.6-43.95 58.6 43.95 10.8-14.4-69.4-52.05zM53.562 185l-7 14h66.876l-7-14H53.562zm352 0l-7 14h66.875l-7-14h-52.875zM41 217v46h78v-46H41zm352 0v46h78v-46h-78zM64 231h32v18H64v-18zm352 0h32v18h-32v-18zM38.486 281l-10 30h455.028l-10-30H38.486zM25 329v158h199v-87h64v87h199V329H25zm55 14h32v18H80v-18zm80 0h32v18h-32v-18zm80 0h32v18h-32v-18zm80 0h32v18h-32v-18zm80 0h32v18h-32v-18z',
+'watchtower':'M256 32l-96 48h23v71h-32v50h30.945L155.36 440.244l-.653.477.522.72-4.175 37.566-.994 8.945 17.89 1.99.995-8.946L171.61 457h168.78l2.665 23.994.994 8.945 17.89-1.99-.995-8.944-4.174-37.567.523-.72-.654-.476L330.054 201H361v-50h-32V80h23l-96-48zm-48 64h32v48h-32V96zm64 0h32v48h-32V96zm-103 73h14v14h-14v-14zm32 0h14v14h-14v-14zm32 0h14v14h-14v-14zm32 0h14v14h-14v-14zm32 0h14v14h-14v-14zm32 0h14v14h-14v-14zm-113.328 32h80.656L256 236.848 215.672 201zm-16.65 9.283L240.33 247h-45.385l4.08-36.717zm113.955 0l4.08 36.717h-45.385l41.305-36.717zM192.945 265h31.383l-34.822 30.953 3.44-30.953zm58.477 0h9.156l51.75 46H199.672l51.75-46zm36.25 0h31.383l3.44 30.953L287.67 265zm-83.994 64h104.644L256 367.053 203.678 329zm-18.8 8.586L236.323 375h-55.6l4.157-37.414zm142.243 0L331.278 375h-55.6l51.444-37.414zM178.724 393h41.6l-45.26 32.914 3.66-32.914zm72.205 0h10.144l63.25 46H187.678l63.25-46zm40.75 0h41.6l3.658 32.914L291.678 393z',
+'factory':'M384 64l.387 256H368l-96-128-16 128-96-128-16 128-96-128-16 128v160h448V64h-32v256h-32V64h-32zM64 352h48v32H64v-32zm80 0h48v32h-48v-32zm80 0h48v32h-48v-32zm80 0h48v32h-48v-32zM64 416h48v32H64v-32zm80 0h48v32h-48v-32zm80 0h48v32h-48v-32zm80 0h48v32h-48v-32z',
+'oil-pump':'M325.9 23.981L311.94 45.25c38.182 24.845 67.675 59.024 96.878 123.178l16.828-24.807c-5.155-17.403-10.801-35.86-16-51.351-5.597-16.682-11.538-30.866-13.105-33.194-1.32-1.96-10.748-9.452-24.53-16.34-12.285-6.14-28.272-12.655-46.11-18.754zm8.33 61.53l-54.46 42.994c10.761 6.175 18.5 17.082 20.314 29.828l57.5-45.396c-7.522-10.489-15.238-19.485-23.354-27.426zm-74.73 55.578c-12.81 0-23 10.19-23 23 0 12.809 10.19 23 23 23s23-10.191 23-23c0-12.81-10.19-23-23-23zm-39.342 34.476L87.49 280.304c11.838 4.67 20.406 16.013 20.975 29.306L244.5 202.214c-11.676-4.635-20.766-14.492-24.342-26.649zm174.342 4.448v210.006h18V195.063l-7.082 10.44-6.453-15.219a682.592 682.592 0 0 0-4.465-10.271zm-92.637.543L286.047 192.8l3.793 18.015-14.526-9.707-15.01 11.621 28.796 19.243-71.305 32.832 4.82-22.897-21.976 17.014-24.354 115.678-.44.195.272.61-19.92 94.615H140.5v18h222V468.58zm-4.226 67.3l12.02 57.088-79.057-26.218zm-85.477 43.717l86.432 28.666-102.012 45.338zM75.5 296.02c-8.39 0-15 6.609-15 15 0 8.39 6.61 15 15 15s15-6.61 15-15c0-8.391-6.61-15-15-15zm239.945 36.427l14.953 71.028-111.953-27.916zm-218.824 3.852c-4.595 3.851-10.24 6.481-16.42 7.377l21.266 46.344h19.804zm-42.232.008l-24.66 53.713h19.808l21.276-46.342c-6.181-.893-11.828-3.521-16.424-7.371zm137.574 51.2l116.781 29.118-133.101 48.403zM28.5 408.018v62h94v-62zm352 0v16h46v-16zm-45.324 18.15l9.232 43.85h-129.82zm45.324 15.85v28h46v-28zm64 28v18h39v-18z',
+'refinery':'M333.7 21.92S347.8 45.41 344 57c-3.4 10.38-23.5 9.3-26 19.94-1.9 8.45 7.2 21.49 12.5 28.16h6.8c7.1-11.21 12.6-21.78 14-34.94 7.9 8.26 10.4 21.29 1.1 34.94h8.4c8-9.54 24.2-30.9 21.2-44.69-4.3-20.13-48.3-38.49-48.3-38.49zM104 51.07c-17.5 0-29.44 4.94-35.49 14.01C62.46 74.15 63 84.07 63 92.07v12.03h18V92.07c0-8 .54-14.08 2.49-17.01 1.95-2.93 6.01-5.99 20.51-5.99h64c10 0 23 12.46 23 24.59V215.7h18v-28.6h103.3l1.6-18H209V93.66c0-23.05-19-42.59-41-42.59zM56 121.1v18h32v-18zm280.2 2l-14.3 158h44.2l-14.3-158zM72 155.1c-10 0-19.88 3.4-27.02 9.7C37.83 171.2 33 180.3 33 194.1v296h78v-296c0-13.7-4.8-22.9-12-29.3-7.12-6.3-17-9.7-27-9.7zm307.9 78l1.6 18H408c14.5 0 23.7 3.5 29.6 9.4 5.9 6 9.4 15.5 9.4 30.4v39.9c2.8-1.1 5.8-1.7 9-1.7s6.2.6 9 1.7v-39.9c0-17.9-4.5-32.8-14.6-43-10.1-10.3-24.9-14.8-42.4-14.8zm-202.9 2v14h46v-14zm23.5 32c-29.7 0-55.8 14.7-71.5 37.3v16.7h142V303c-15.8-21.7-41.4-35.9-70.5-35.9zm88.5 32v110h110v-110zm-160 40v14h142v-14zm327 8c-4 0-7 3-7 7s3 7 7 7 7-3 7-7-3-7-7-7zm-327 24v32.6c6.6 9.5 15 17.6 24.7 23.8L131 473.1v17h37.5v-17h-17.4l18.8-37.5c9.5 3.5 19.8 5.5 30.6 5.5s21.1-2 30.6-5.5l18.8 37.5h-17.4v17h64v-17h-26.4l-22.8-45.6c9.2-5.9 17.3-13.5 23.7-22.3v-34.1zm318 6.3v31.7h18v-31.7c-2.8 1.1-5.8 1.7-9 1.7s-6.2-.6-9-1.7zm-116.3 49.7l49.6 63h41l-49.6-63zm64 0l49.6 63H479v-8.9l-43.3-54.1zm64 0l20.3 25.4v-25.4zM321 443.7v46.4h36.3z',
+'mine-wagon':'M365.906 60.844C347.218 62.03 327.732 73.3 307.72 87.5c-20.814 14.77-41.852 32.27-64.626 41.875a8 8 0 0 1-9.125-2.125c-15.01-17.31-38.15-30.55-73.22-27.28-19.124 1.78-32.252 10.625-43.688 23.655-5.264 6-9.998 12.975-14.53 20.375h322.624c-15.21-29.846-29.05-64.182-59.25-83.156zM40 160v44h416v-44H40zm18.375 60l49.344 186.563H118c3.087-6.592 7.31-12.684 12.563-17.938 11.916-11.916 28.63-18.906 45.843-18.906 17.214 0 33.897 6.99 45.813 18.905 5.252 5.254 9.467 11.346 12.56 17.938h42.97c3.104-6.47 7.282-12.44 12.406-17.563 11.927-11.926 28.384-18.75 45.25-18.75 16.867 0 33.324 6.824 45.25 18.75 5.124 5.124 9.303 11.092 12.406 17.563h6.032L438.156 220H58.376zM426.22 355l-6.064 29H456v-29h-29.78zm-249.814 31.563c-11.69 0-23.728 4.915-32.25 13.437-8.522 8.522-13.75 21.002-13.75 33.344 0 12.34 5.228 24.82 13.75 33.344 8.522 8.522 20.56 13.437 32.25 13.437 11.69 0 23.697-4.915 32.22-13.438 8.52-8.522 13.78-21.002 13.78-33.343 0-12.342-5.26-24.822-13.78-33.344-8.523-8.522-20.53-13.438-32.22-13.438zm159 1.28c-12.037 0-24.3 5.083-32.812 13.594C294.082 409.95 289 422.212 289 434.25c0 12.038 5.082 24.3 13.594 32.813 8.512 8.51 20.775 13.593 32.812 13.593 12.038 0 24.3-5.082 32.813-13.594 8.51-8.51 13.592-20.774 13.592-32.812 0-12.038-5.08-24.3-13.593-32.813-8.513-8.51-20.776-13.593-32.814-13.593z',
+'bank':'M256 25.6L52 134.4h170v-56h68v55.094c2.53.258 5.04.567 7.54.906H460L256 25.6zm-16 70.8v57.38l-6.248 2.005c-14.24 4.573-26.103 11.94-36.07 22.322-17.686 18.425-26.735 43.597-26.735 77.368 0 33.38 8.89 58.507 26.282 77.144 10.118 10.787 22.11 18.3 36.477 22.83l6.293 1.984V420.4h32v-59.85l8.373-.587c9.6-.67 18.958-2.145 28.092-4.45 11.206-2.827 22.043-6.956 32.588-12.26V252.11h-61.035v19.974h30.955v49.576l-5.403 2.356c-4.373 1.906-9.156 3.264-14.322 4.152l-.08.014-.08.013c-5.003.768-10.33 1.133-15.988 1.133-21.365 0-39.558-7.483-51.834-22.228-11.08-13.308-17.89-27.01-17.89-51.625 0-24.844 7.066-38.687 18.532-51.912h.002c12.767-14.722 31.483-22.09 53.56-22.09 11.836 0 23.63 1.875 35.264 5.574 7.058 2.227 14.08 5.21 21.075 8.764v-32.35a138.957 138.957 0 0 0-26.992-9.155h-.006l-.008-.002c-8.43-1.94-17.185-3.16-26.287-3.65l-8.517-.458V96.4h-32zm-192 54v18h25v206H48v18h96v-18h-25v-206h25v-18H48zm320 0v18h25v206h-25v18h96v-18h-25v-206h25v-18h-96zm-327 258v30h181v-30H41zm249 0v30h181v-30H290zm-265 48v30h462v-30H25z',
+'oil-rig':'M291.17 16.975c-5.923.122-11.645 2.246-16.06 7.398-17.652 20.61-13.472 36.05-10.667 42.856 16.607-51.264 33.81-5.23 55.442-25.076 8.615-7.904-10.947-25.546-28.715-25.18zM208 67.107c-19.994.235-33.533 26.42-25.31 33.495 22.252 19.138 32.473-26.055 58.884-4.803-6.212-13.538-13.58-28.927-33.574-28.693zm93.832 8.967c-12.564.318-21.72 9.49-29.832 17.832 32-11.19 26.51 34.82 53.883 24.23 10.118-3.914 6.12-33.12-12.643-40.032-4.104-1.512-7.89-2.12-11.408-2.03zM247 106.107v32h-30.38l-6.4 32H199v18h7.62l-15.417 77.09-1.594.91H176v18h11.422l-34.8 174H128v18h256v-18h-24.62l-34.802-174H336v-18h-13.61l-1.593-.91-15.418-77.09H313v-18h-11.22l-6.4-32H265v-32h-18zm-15.62 50H247v14h-18.42l2.8-14zm33.62 0h15.62l2.8 14H265v-14zm-40.02 32H247v34.92l-26.03-14.875 4.01-20.045zm40.02 0h22.02l4.01 20.045L265 223.027v-34.92zm-47.752 38.65l20.61 11.778-25.928 14.82 5.318-26.597zm77.504 0l5.318 26.597-25.93-14.82 20.612-11.776zM247 254.046v12.062h-21.11L247 254.045zm18 0l21.11 12.062H265v-12.062zm-59.22 30.062H247v47.846l-47.615-15.87 6.394-31.976zm59.22 0h41.22l6.407 32.028L265 332.61v-48.503zm-69.172 49.762l33.38 11.126-38.253 13.234 4.873-24.36zm120.36.08l4.515 22.57-35.525-11.84 31.01-10.73zM265 356.925l48.54 16.18L265 399.58v-42.656zm-18 .963v41.692l-46.77-25.512L247 357.89zm-61.688 28.55l51.893 28.302-64.6 35.237 12.708-63.54zm141.375 0l12.708 63.54-64.598-35.238 51.89-28.303zM247 429.903v28.203h-51.705L247 429.904zm18 0l51.705 28.203H265v-28.203z'
+};
+
+let bloc='west', state='normal', sel={};
+
+function gc(){return state==='disabled'?clrs.disabled:clrs[bloc];}
+
+function hexPts(cx,cy,r){
+  return [0,60,120,180,240,300].map(a=>{
+    const rad=(a-90)*Math.PI/180;
+    return `${(cx+r*Math.cos(rad)).toFixed(1)},${(cy+r*Math.sin(rad)).toFixed(1)}`;
+  }).join(' ');
+}
+
+function iconG(key,sz,col){
+  if(!paths[key]) return '';
+  const sc=(sz*0.58)/512, off=sz*0.21;
+  return `<g transform="translate(${off.toFixed(1)},${off.toFixed(1)}) scale(${sc.toFixed(4)})"><path fill="${col}" d="${paths[key]}"/></g>`;
+}
+
+function marker(type,key){
+  const c=gc(), sz=54, h=sz/2;
+  const ring=state==='priority'?`<circle cx="${h}" cy="${h}" r="${h+2}" fill="none" stroke="${c.ring}" stroke-width="3" class="pring"/>` : '';
+  const op=state==='disabled'?'opacity=".55"':'';
+  let shape='', inner='';
+
+  if(type==='empty'){
+    shape=`<circle cx="${h}" cy="${h}" r="${h-3}" fill="none" stroke="${c.bg}" stroke-width="2" stroke-dasharray="5 3"/>`;
+    if(key==='crosshair'){
+      inner=`<line x1="${h}" y1="8" x2="${h}" y2="${sz-8}" stroke="${c.bg}" stroke-width="1.5"/>
+      <line x1="8" y1="${h}" x2="${sz-8}" y2="${h}" stroke="${c.bg}" stroke-width="1.5"/>
+      <circle cx="${h}" cy="${h}" r="3.5" fill="${c.bg}"/>`;
+    } else if(key==='plus'){
+      inner=`<line x1="${h}" y1="16" x2="${h}" y2="${sz-16}" stroke="${c.bg}" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="16" y1="${h}" x2="${sz-16}" y2="${h}" stroke="${c.bg}" stroke-width="2.5" stroke-linecap="round"/>`;
+    } else {
+      inner=`<circle cx="${h}" cy="${h}" r="4.5" fill="${c.bg}"/>`;
+    }
+  } else if(type==='base'){
+    shape=`<polygon points="${hexPts(h,h,h-2)}" fill="${c.bg}" stroke="${c.ring}" stroke-width="1.5"/>`;
+    inner=iconG(key,sz,'#fff');
+  } else {
+    shape=`<polygon points="${h},3 ${sz-3},${h} ${h},${sz-3} 3,${h}" fill="${c.bg}" stroke="${c.ring}" stroke-width="1.5"/>`;
+    inner=iconG(key,sz,'#fff');
+  }
+  return `<svg viewBox="0 0 ${sz} ${sz}" width="${sz}" height="${sz}" ${op}>${ring}${shape}${inner}</svg>`;
+}
+
+function card(type,key,lbl){
+  const id=`c-${type}-${key}`;
+  const cls='ic'+(sel[type]===key?' sel':'');
+  return `<div class="${cls}" id="${id}" onclick="pick('${type}','${key}')">${marker(type,key)}<span class="ic-lbl">${lbl}</span></div>`;
+}
+
+function renderAll(){
+  document.getElementById('empty-row').innerHTML=
+    [['crosshair','Crosshair'],['plus','Plus sign'],['dot','Center dot']].map(([k,l])=>card('empty',k,l)).join('');
+  document.getElementById('base-row').innerHTML=
+    [['military-fort','Military fort'],['watchtower','Watchtower']].map(([k,l])=>card('base',k,l)).join('');
+  document.getElementById('trust-row').innerHTML=
+    [['factory','Factory'],['oil-pump','Oil pump'],['oil-rig','Oil rig'],['refinery','Refinery'],['mine-wagon','Mine wagon'],['bank','Bank']].map(([k,l])=>card('trust',k,l)).join('');
+}
+
+function tog(btn){
+  const g=btn.dataset.group;
+  document.querySelectorAll(`.ctrl-btn[data-group="${g}"]`).forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+}
+function setBloc(b,btn){bloc=b;tog(btn);renderAll();}
+function setSt(s,btn){state=s;tog(btn);renderAll();}
+function pick(type,key){sel[type]=key;renderAll();}
+
+renderAll();
+</script>

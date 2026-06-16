@@ -1,11 +1,14 @@
 import { useState, useCallback } from 'react'
 import type maplibregl from 'maplibre-gl'
 import MapView from './map/MapView'
+import PlacementsLayer from './map/PlacementsLayer'
 import PixiOverlay from './pixi/PixiOverlay'
 import { MAP_WINDOW } from './config/mapLayout'
+import { usePlacements } from './api/placements'
 
 export default function App() {
   const [map, setMap] = useState<maplibregl.Map | null>(null)
+  const { data: placements = [] } = usePlacements()
 
   const handleMapReady = useCallback((m: maplibregl.Map) => {
     setMap(m)
@@ -40,6 +43,7 @@ export default function App() {
         }}
       >
         <MapView onMapReady={handleMapReady} />
+        <PlacementsLayer map={map} placements={placements} />
         <PixiOverlay map={map} />
       </div>
     </div>
