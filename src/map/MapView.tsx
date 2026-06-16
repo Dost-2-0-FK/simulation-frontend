@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
 export default function MapView({ onMapReady }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
+  const [coords, setCoords] = useState<{ lng: number; lat: number } | null>(null)
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -40,13 +41,14 @@ export default function MapView({ onMapReady }: Props) {
       // Add the world map jpg as a geographic image source
       map.addSource('world-map', {
         type: 'image',
-        url: '/wordl-map-v1.jpg',
+        url: '/MapClean_cropped.png',
         // Corners: [lng, lat] — top-left, top-right, bottom-right, bottom-left
+        // Bounds calibrated from readout measurements (83.7 / -84.8 minimises residuals)
         coordinates: [
-          [-180, 85],
-          [180, 85],
-          [180, -85],
-          [-180, -85],
+          [-180, 83.7],
+          [180,  83.7],
+          [180,  -84.8],
+          [-180, -84.8],
         ],
       })
 
@@ -83,8 +85,16 @@ export default function MapView({ onMapReady }: Props) {
         }
       })
 
+      // Fit the full world map image bounds to the container with no padding
+      map.fitBounds([[-180, -84.8], [180, 83.7]], { padding: 0, animate: false })
+
       onMapReady?.(map)
     })
+
+    map.on('mousemove', (e) => {
+      setCoords({ lng: e.lngLat.lng, lat: e.lngLat.lat })
+    })
+    map.on('mouseleave', () => setCoords(null))
 
     mapRef.current = map
 
@@ -98,6 +108,24 @@ export default function MapView({ onMapReady }: Props) {
     <div
       ref={containerRef}
       style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}
-    />
+    >
+      {coords && (
+        <div style={{
+          position: 'absolute',
+          bottom: 8,
+          left: 8,
+          zIndex: 20,
+          background: 'rgba(0,0,0,0.65)',
+          color: '#fff',
+          fontFamily: 'monospace',
+          fontSize: 12,
+          padding: '4px 8px',
+          borderRadius: 4,
+          pointerEvents: 'none',
+        }}>
+          {coords.lng.toFixed(4)}°, {coords.lat.toFixed(4)}°
+        </div>
+      )}
+    </div>
   )
 }

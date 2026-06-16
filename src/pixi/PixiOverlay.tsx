@@ -17,11 +17,14 @@ export default function PixiOverlay({ map }: Props) {
 
     const app = new Application()
 
+    const mapContainer = map.getContainer()
+    const { width: initWidth, height: initHeight } = mapContainer.getBoundingClientRect()
+
     app
       .init({
         canvas,
-        width: window.innerWidth,
-        height: window.innerHeight,
+        width: initWidth,
+        height: initHeight,
         backgroundAlpha: 0, // transparent — map shows through
         antialias: true,
         autoDensity: true,
@@ -37,7 +40,8 @@ export default function PixiOverlay({ map }: Props) {
         map.on('render', onMapRender)
 
         const onResize = () => {
-          app.renderer.resize(window.innerWidth, window.innerHeight)
+          const { width, height } = map.getContainer().getBoundingClientRect()
+          app.renderer.resize(width, height)
         }
         window.addEventListener('resize', onResize)
 
