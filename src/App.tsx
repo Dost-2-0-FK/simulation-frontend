@@ -3,11 +3,14 @@ import type maplibregl from 'maplibre-gl'
 import MapView from './map/MapView'
 import PlacementsLayer from './map/PlacementsLayer'
 import PixiOverlay from './pixi/PixiOverlay'
+import PlacementMenu from './ui/PlacementMenu'
 import { MAP_WINDOW } from './config/mapLayout'
 import { usePlacements } from './api/placements'
+import type { Placement } from './types/placement'
 
 export default function App() {
   const [map, setMap] = useState<maplibregl.Map | null>(null)
+  const [selectedPlacement, setSelectedPlacement] = useState<Placement | null>(null)
   const { data: placements = [] } = usePlacements()
 
   const handleMapReady = useCallback((m: maplibregl.Map) => {
@@ -43,8 +46,11 @@ export default function App() {
         }}
       >
         <MapView onMapReady={handleMapReady} />
-        <PlacementsLayer map={map} placements={placements} />
+        <PlacementsLayer map={map} placements={placements} onPlacementClick={setSelectedPlacement} />
         <PixiOverlay map={map} />
+        {map && selectedPlacement && (
+          <PlacementMenu map={map} placement={selectedPlacement} onClose={() => setSelectedPlacement(null)} />
+        )}
       </div>
     </div>
   )

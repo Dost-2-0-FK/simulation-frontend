@@ -168,6 +168,35 @@ Also re-render on `map.on('move')` and `map.on('zoom')` to avoid 1-frame lag.
 | Movement trails | Pixi (shader-based, fading path behind unit) |
 | HUD / build panel / resource bar | React (DOM, outside canvas) |
 
+### Adding a new MapLibre source/layer (gotcha)
+
+`MapView.tsx` adds several sources asynchronously inside its `load` handler
+(world-map raster image, zone GeoJSON, and — going forward — anything else
+mounted the same way, e.g. new zone overlays or marker layers). Any component
+that adds its own source/layer to the shared map (see `PlacementsLayer.tsx`
+for the working pattern) must not gate purely on:
+
+```ts
+map.isStyleLoaded()   // checked once
+map.on('styledata', ensureLayer)  // retried only on this event
+```
+
+`styledata` is **not guaranteed to fire again** once those other sources
+finish loading — MapLibre can settle straight into a single `idle` event
+instead. If `isStyleLoaded()` is false on the first synchronous call (e.g.
+because a sibling source added in `MapView.tsx`'s `load` handler is still
+fetching) and no further `styledata` event happens to land, the retry gated
+on `styledata` alone silently never fires again and the layer never gets
+added — no error, nothing in the console, it just doesn't render.
+
+**Fix pattern:** listen for both `map.on('styledata', ensureLayer)` **and**
+`map.on('idle', ensureLayer)` (with matching `.off()` cleanup for both). This
+was the root cause of Placement markers silently not appearing even though
+the API data loaded correctly — see `PlacementsLayer.tsx`'s `ensureLayer`
+for the fixed version. Apply the same dual-listener pattern to any future
+map layer (unit sprites' underlying markers, new zone overlays, etc.) that
+adds itself to the map after mount.
+
 ---
 
 ## Key frontend behaviours

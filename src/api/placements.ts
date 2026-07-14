@@ -1,35 +1,37 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Placement } from '../types/placement'
+import { apiGet } from './client'
+import { getBases, createBase } from './bases'
+import { getTrusts, createTrust } from './trusts'
 import { INTERVALS } from './intervals'
 
-// Grid centers: lines fall every 10° starting at the poles/antimeridian,
-// so cell centers are offset 5° from those lines.
-const LAT_MIN = -75
-const LAT_MAX = 75
-const LNG_MIN = -175
-const LNG_MAX = 175
-const STEP = 10
-
-function generateGridPlacements(): Placement[] {
-  const placements: Placement[] = []
-  for (let lat = LAT_MIN; lat <= LAT_MAX; lat += STEP) {
-    for (let lng = LNG_MIN; lng <= LNG_MAX; lng += STEP) {
-      placements.push({
-        id: `${lat}_${lng}`,
-        lat,
-        lng,
-        occupant: null,
-      })
-    }
-  }
-  return placements
+// Wire shape of GET /api/placements, confirmed against the running backend.
+interface PlacementResponse {
+  id: string
+  zone: string
+  position: { x: number; y: number }
 }
 
-// Dummy implementation — replace with a fetch() against the real backend
-// (GET /api/placements) once the endpoint exists. Keep the signature stable
-// so callers don't need to change.
-export async function getPlacements(): Promise<Placement[]> {
-  return generateGridPlacements()
+// GET /api/placements doesn't carry occupancy itself — it's derived by joining
+// against /api/bases and /api/trusts by placementId.
+async function getPlacements(): Promise<Placement[]> {
+  const [placements, bases, trusts] = await Promise.all([
+    apiGet<PlacementResponse[]>('/api/placements'),
+    getBases(),
+    getTrusts(),
+  ])
+
+  const occupants = new Map<string, Placement['occupant']>()
+  for (const base of bases) occupants.set(base.placementId, { type: 'base', ...base })
+  for (const trust of trusts) occupants.set(trust.placementId, { type: 'trust', ...trust })
+
+  return placements.map((p) => ({
+    id: p.id,
+    zone: p.zone,
+    lng: p.position.x,
+    lat: p.position.y,
+    occupant: occupants.get(p.id) ?? null,
+  }))
 }
 
 export function usePlacements() {
@@ -37,5 +39,16 @@ export function usePlacements() {
     queryKey: ['placements'],
     queryFn: getPlacements,
     refetchInterval: INTERVALS.placements,
+  })
+}
+
+export function useBuildOnPlacement() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ placementId, type }: { placementId: string; type: 'base' | 'trust' }) =>
+      type === 'base' ? createBase(placementId) : createTrust(placementId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['placements'] })
+    },
   })
 }
