@@ -1,10 +1,11 @@
 // Marker icon system ported from src/assets/placement_icon_showcase.html.
 // Icon paths: game-icons.net by Delapouite, CC BY 3.0.
 import type { Placement } from '../types/placement'
+import type { Unit } from '../types/unit'
 
 export type IconBloc = 'west' | 'east' | 'neutral'
 export type IconState = 'normal' | 'priority' | 'disabled'
-export type IconShape = 'empty' | 'base' | 'trust'
+export type IconShape = 'empty' | 'base' | 'trust' | 'unit'
 
 export interface IconSpec {
   shape: IconShape
@@ -21,12 +22,15 @@ const RASTER_SIZE = 128
 export const ICON_PIXEL_RATIO = RASTER_SIZE / DESIGN_SIZE
 // On-map display size is much smaller than the showcase's card size (576 world-grid points).
 export const ICON_SIZE_FACTOR = 0.4
+// Units render as a small plain dot, smaller than placement markers.
+export const UNIT_ICON_SIZE_FACTOR = 0.22
 
 // No sub-type field exists yet on Placement.occupant for which base/trust icon to use,
 // nor a bloc — confirm against ../game-backend/src/models before these can be data-driven.
 const DEFAULT_EMPTY_KEY = 'dot'
 const DEFAULT_BASE_KEY = 'military-fort'
 const DEFAULT_TRUST_KEY = 'factory'
+const DEFAULT_UNIT_KEY = 'dot'
 
 const PALETTE: Record<IconBloc | 'disabled', { bg: string; ring: string }> = {
   west: { bg: '#185FA5', ring: '#85B7EB' },
@@ -85,7 +89,10 @@ function markerSvg(spec: IconSpec): string {
   let body: string
   let inner: string
 
-  if (shape === 'empty') {
+  if (shape === 'unit') {
+    body = `<circle cx="${h}" cy="${h}" r="${h * 0.32}" fill="${c.bg}" stroke="${c.ring}" stroke-width="1.5"/>`
+    inner = ''
+  } else if (shape === 'empty') {
     body = `<circle cx="${h}" cy="${h}" r="${h - 3}" fill="none" stroke="${c.bg}" stroke-width="2" stroke-dasharray="5 3"/>`
     if (key === 'crosshair') {
       inner = `<line x1="${h}" y1="8" x2="${h}" y2="${sz - 8}" stroke="${c.bg}" stroke-width="1.5"/><line x1="8" y1="${h}" x2="${sz - 8}" y2="${h}" stroke="${c.bg}" stroke-width="1.5"/><circle cx="${h}" cy="${h}" r="3.5" fill="${c.bg}"/>`
@@ -106,7 +113,7 @@ function markerSvg(spec: IconSpec): string {
 }
 
 export function iconId(spec: IconSpec): string {
-  return `placement-${spec.shape}-${spec.key}-${spec.bloc}-${spec.state}`
+  return `marker-${spec.shape}-${spec.key}-${spec.bloc}-${spec.state}`
 }
 
 // id -> spec, populated as features are built so the styleimagemissing handler
@@ -143,4 +150,15 @@ export function specForPlacement(placement: Placement): IconSpec {
     return { shape: 'base', key: DEFAULT_BASE_KEY, bloc: 'neutral', state: 'normal' }
   }
   return { shape: 'trust', key: DEFAULT_TRUST_KEY, bloc: 'neutral', state: 'normal' }
+}
+
+// bloc on Unit is a free-form BlocName string from the backend — map it onto the
+// west/east/neutral palette used for markers, defaulting unrecognised names to neutral.
+function iconBlocForUnit(bloc: string | null): IconBloc {
+  if (bloc === 'west' || bloc === 'east') return bloc
+  return 'neutral'
+}
+
+export function specForUnit(unit: Unit): IconSpec {
+  return { shape: 'unit', key: DEFAULT_UNIT_KEY, bloc: iconBlocForUnit(unit.bloc), state: 'normal' }
 }

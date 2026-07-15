@@ -3,7 +3,7 @@ import type maplibregl from 'maplibre-gl'
 import type { Placement } from '../types/placement'
 import type { BaseTarget } from '../types/base'
 import type { Financing } from '../types/financing'
-import { useBuildOnPlacement } from '../api/placements'
+import { useBuildOnPlacement, buildErrorMessage } from '../api/placements'
 
 interface Props {
   map: maplibregl.Map
@@ -137,7 +137,9 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
         </div>
       )}
 
-      {buildOnPlacement.isError && <div className="mt-2 text-xs text-red-600">Failed to build — try again.</div>}
+      {buildOnPlacement.isError && (
+        <div className="mt-2 text-xs text-red-600">{buildErrorMessage(buildOnPlacement.error)}</div>
+      )}
     </div>
   )
 }
