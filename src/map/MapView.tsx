@@ -9,6 +9,8 @@ export default function MapView({ onMapReady }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [coords, setCoords] = useState<{ lng: number; lat: number } | null>(null)
+  const MAP_TOP_LAT = 83.42
+  const MAP_BOTTOM_LAT = -85.05
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -45,10 +47,10 @@ export default function MapView({ onMapReady }: Props) {
         // Corners: [lng, lat] — top-left, top-right, bottom-right, bottom-left
         // Bounds calibrated from readout measurements (83.7 / -84.8 minimises residuals)
         coordinates: [
-          [-180, 83.7],
-          [180,  83.7],
-          [180,  -84.8],
-          [-180, -84.8],
+          [-180, MAP_TOP_LAT],
+          [180,  MAP_TOP_LAT],
+          [180,  MAP_BOTTOM_LAT],
+          [-180, MAP_BOTTOM_LAT],
         ],
       })
 
@@ -85,8 +87,10 @@ export default function MapView({ onMapReady }: Props) {
         }
       })
 
+
       // Fit the full world map image bounds to the container with no padding
-      map.fitBounds([[-180, -84.8], [180, 83.7]], { padding: 0, animate: false })
+      map.fitBounds([[-180, MAP_BOTTOM_LAT], [180, MAP_TOP_LAT]], { padding: 0, animate: false })
+      map.setMaxBounds([[-179.9999, MAP_BOTTOM_LAT], [179.9999, MAP_TOP_LAT]]) // stops cursor/pan from ever leaving the image
 
       onMapReady?.(map)
     })
