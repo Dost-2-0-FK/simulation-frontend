@@ -2,31 +2,41 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import * as authApi from '../api/auth'
 
 interface AuthState {
-  userKey: string | null
-  /** Set when a request rejected the stored key, so the login screen can explain why it reappeared. */
+  userId: string | null
+  /** Set when login or a later request was rejected, so the login screen can explain why it (re)appeared. */
   loginError: string | null
-  login: (key: string) => void
+  login: (userId: string, password: string) => Promise<void>
   logout: (reason?: string) => void
 }
 
-// Persisted to localStorage so a page refresh doesn't force a re-login.
-// Login itself does not call the backend — the key is only ever validated
-// by the backend when it's used to authorize a write (build a base/trust).
+// `userId` is persisted to localStorage purely so the HUD doesn't flash the
+// login modal on refresh — the real session lives in the backend's cookie
+// (actix-identity). If that cookie has expired, the next authenticated
+// request 401s and the caller logs out again via `logout(reason)`.
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      userKey: null,
+      userId: null,
       loginError: null,
-      login: (key) => set({ userKey: key, loginError: null }),
-      logout: (reason) => set({ userKey: null, loginError: reason ?? null }),
+      login: async (userId, password) => {
+        const authenticatedUserId = await authApi.login(userId, password)
+        set({ userId: authenticatedUserId, loginError: null })
+      },
+      logout: (reason) => {
+        set({ userId: null, loginError: reason ?? null })
+        // Best-effort — the local session is cleared either way, and a failed
+        // request here shouldn't stop the user from seeing the login screen.
+        void authApi.logout()
+      },
     }),
-    { name: 'auth', partialize: (state) => ({ userKey: state.userKey }) },
+    { name: 'auth', partialize: (state) => ({ userId: state.userId }) },
   ),
 )
 
-// Non-reactive accessor for use outside React components (e.g. the API client).
-export function getUserKey(): string | null {
-  return useAuthStore.getState().userKey
+// Non-reactive accessor for use outside React components.
+export function getUserId(): string | null {
+  return useAuthStore.getState().userId
 }

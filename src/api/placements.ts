@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Placement } from '../types/placement'
+import type { Financing } from '../types/financing'
+import type { BaseTarget } from '../types/base'
 import { apiGet, ApiError } from './client'
-import { getBases, createBase } from './bases'
+import { getBases, createBase, setBaseTarget } from './bases'
 import { getTrusts, createTrust } from './trusts'
 import { INTERVALS } from './intervals'
 import { useAuthStore } from '../store'
+import { normalizeLngLat } from '../bridge'
 
 // Wire shape of GET /api/placements, confirmed against the running backend.
 interface PlacementResponse {
@@ -26,13 +29,16 @@ async function getPlacements(): Promise<Placement[]> {
   for (const base of bases) occupants.set(base.placementId, { type: 'base', ...base })
   for (const trust of trusts) occupants.set(trust.placementId, { type: 'trust', ...trust })
 
-  return placements.map((p) => ({
-    id: p.id,
-    zone: p.zone,
-    lng: p.position.x,
-    lat: p.position.y,
-    occupant: occupants.get(p.id) ?? null,
-  }))
+  return placements.map((p) => {
+    const { lng, lat } = normalizeLngLat(p.position.x, p.position.y)
+    return {
+      id: p.id,
+      zone: p.zone,
+      lng,
+      lat,
+      occupant: occupants.get(p.id) ?? null,
+    }
+  })
 }
 
 export function usePlacements() {
@@ -43,30 +49,54 @@ export function usePlacements() {
   })
 }
 
+type BuildInput =
+  | { placementId: string; type: 'base' }
+  | { placementId: string; type: 'trust'; resource: string; financing?: Financing }
+
 export function useBuildOnPlacement() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ placementId, type }: { placementId: string; type: 'base' | 'trust' }) =>
-      type === 'base' ? createBase(placementId) : createTrust(placementId),
+    mutationFn: (input: BuildInput) =>
+      input.type === 'base' ? createBase(input.placementId) : createTrust(input.placementId, input.resource, input.financing),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['placements'] })
     },
     onError: (error) => {
-      // A missing/invalid key means the backend never recognized it — clear it so the
-      // login screen reappears rather than letting the user keep hitting the same wall.
+      // A 401 means the session cookie is missing or expired — clear local auth state so
+      // the login screen reappears rather than letting the user keep hitting the same wall.
       if (error instanceof ApiError && error.status === 401) {
-        useAuthStore.getState().logout('Your key was rejected. Please log in again.')
+        useAuthStore.getState().logout('Your session expired. Please log in again.')
       }
     },
   })
 }
 
 // Human-readable explanation for a failed build, distinguishing "you're not logged
-// in (or your key is invalid)" from "your key doesn't grant access to this bloc/zone".
+// in" from "you don't have write access to this bloc/zone".
 export function buildErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 401) return 'Your key is missing or invalid. Please log in again.'
-    if (error.status === 403) return "Your key doesn't have write access here."
+    if (error.status === 401) return 'You are not logged in. Please log in again.'
+    if (error.status === 403) return "You don't have write access here."
   }
   return 'Failed to build — try again.'
+}
+
+export function useSetBaseTarget() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ baseId, target }: { baseId: number; target: BaseTarget }) => setBaseTarget(baseId, target),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['placements'] })
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 401) {
+        useAuthStore.getState().logout('Your session expired. Please log in again.')
+      }
+    },
+  })
+}
+
+// Human-readable explanation for a failed target update — same failure modes as build.
+export function targetErrorMessage(error: unknown): string {
+  return buildErrorMessage(error)
 }

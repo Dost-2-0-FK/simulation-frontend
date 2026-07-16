@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { Placement } from '../types/placement'
 import type { BaseTarget } from '../types/base'
 import type { Financing } from '../types/financing'
-import { useBuildOnPlacement, buildErrorMessage } from '../api/placements'
+import { useBuildOnPlacement, usePlacements, useSetBaseTarget, buildErrorMessage, targetErrorMessage } from '../api/placements'
 
 interface Props {
   map: maplibregl.Map
@@ -20,6 +20,19 @@ function targetLabel(target: BaseTarget): string {
     case 'trust':
       return `Trust #${target.id}`
   }
+}
+
+// Encodes a BaseTarget as a flat string for use as a <select> option value, since
+// 'base'/'trust' targets need their id alongside the type to stay distinguishable.
+function targetKey(target: BaseTarget): string {
+  return target.type === 'none' ? 'none' : `${target.type}:${target.id}`
+}
+
+function parseTargetKey(key: string): BaseTarget {
+  if (key === 'none') return { type: 'none' }
+  const [type, idStr] = key.split(':')
+  const id = Number(idStr)
+  return type === 'base' ? { type: 'base', id } : { type: 'trust', id }
 }
 
 function FinancingList({ payment, fallbackLabel }: { payment: Financing[]; fallbackLabel: string }) {
@@ -50,6 +63,38 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: 'green' | 
 export default function PlacementMenu({ map, placement, onClose }: Props) {
   const [pos, setPos] = useState(() => map.project([placement.lng, placement.lat]))
   const buildOnPlacement = useBuildOnPlacement()
+  const setBaseTarget = useSetBaseTarget()
+  const [showTrustForm, setShowTrustForm] = useState(false)
+  const [resource, setResource] = useState('')
+  const [financierId, setFinancierId] = useState('')
+  const [sharePercent, setSharePercent] = useState('')
+
+  // Shares the ['placements'] query cache already populated by App.tsx — no extra fetch.
+  const { data: allPlacements = [] } = usePlacements()
+  const { occupant } = placement
+  const targetOptions = useMemo(() => {
+    if (occupant?.type !== 'base') return []
+    return allPlacements
+      .map((p) => p.occupant)
+      .filter((o): o is NonNullable<Placement['occupant']> => o !== null && !(o.type === 'base' && o.id === occupant.id))
+      .map((o) => ({ key: `${o.type}:${o.id}`, label: o.type === 'base' ? `Base #${o.id} (${o.bloc})` : `Trust #${o.id} (${o.zone})` }))
+  }, [allPlacements, occupant])
+
+  // Reset the picker to the base's current target whenever that target changes underneath us
+  // (e.g. after our own mutation succeeds, or another player's edit is picked up by polling).
+  // Adjusted during render rather than in an effect, per https://react.dev/learn/you-might-not-need-an-effect.
+  const currentTargetKey = occupant?.type === 'base' ? targetKey(occupant.target) : 'none'
+  const [selectedTargetKey, setSelectedTargetKey] = useState(currentTargetKey)
+  const [syncedTargetKey, setSyncedTargetKey] = useState(currentTargetKey)
+  if (currentTargetKey !== syncedTargetKey) {
+    setSyncedTargetKey(currentTargetKey)
+    setSelectedTargetKey(currentTargetKey)
+  }
+
+  const handleSetTarget = () => {
+    if (occupant?.type !== 'base') return
+    setBaseTarget.mutate({ baseId: occupant.id, target: parseTargetKey(selectedTargetKey) })
+  }
 
   // Keep the menu pinned to the placement marker as the map pans/zooms.
   useEffect(() => {
@@ -61,11 +106,26 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
     }
   }, [map, placement.lng, placement.lat])
 
-  const handleBuild = (type: 'base' | 'trust') => {
-    buildOnPlacement.mutate({ placementId: placement.id, type }, { onSuccess: onClose })
+  const handleBuildBase = () => {
+    buildOnPlacement.mutate({ placementId: placement.id, type: 'base' }, { onSuccess: onClose })
   }
 
-  const { occupant } = placement
+  const trimmedFinancierId = financierId.trim()
+  const parsedShare = sharePercent.trim() === '' ? null : Number(sharePercent) / 100
+  const shareValid = parsedShare === null || (Number.isFinite(parsedShare) && parsedShare > 0 && parsedShare <= 1)
+  // Financier and share must be supplied together, or not at all.
+  const financierValid = (trimmedFinancierId === '') === (parsedShare === null)
+  const canSubmitTrust = resource.trim() !== '' && financierValid && shareValid
+
+  const handleBuildTrust = () => {
+    if (!canSubmitTrust) return
+    const financing = trimmedFinancierId && parsedShare !== null ? { financierId: trimmedFinancierId, share: parsedShare } : undefined
+    buildOnPlacement.mutate(
+      { placementId: placement.id, type: 'trust', resource: resource.trim(), financing },
+      { onSuccess: onClose },
+    )
+  }
+
   const accentClass = occupant?.type === 'base' ? 'border-t-blue-600' : occupant?.type === 'trust' ? 'border-t-green-600' : 'border-t-gray-300'
 
   return (
@@ -90,12 +150,12 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
         <div className="text-xs text-gray-500">Zone: {placement.zone}</div>
       </div>
 
-      {!occupant && (
+      {!occupant && !showTrustForm && (
         <div className="flex gap-2">
           <button
             type="button"
             disabled={buildOnPlacement.isPending}
-            onClick={() => handleBuild('base')}
+            onClick={handleBuildBase}
             className="flex-1 rounded bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
           >
             Build Base
@@ -103,11 +163,66 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
           <button
             type="button"
             disabled={buildOnPlacement.isPending}
-            onClick={() => handleBuild('trust')}
+            onClick={() => setShowTrustForm(true)}
             className="flex-1 rounded bg-green-600 px-2 py-1 text-sm text-white hover:bg-green-700 disabled:opacity-50"
           >
             Build Trust
           </button>
+        </div>
+      )}
+
+      {!occupant && showTrustForm && (
+        <div className="space-y-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Resource</label>
+            <input
+              type="text"
+              value={resource}
+              onChange={(e) => setResource(e.target.value)}
+              placeholder="e.g. oil"
+              className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+            />
+          </div>
+          <div className="text-xs font-medium text-gray-500">Financier (optional)</div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={financierId}
+              onChange={(e) => setFinancierId(e.target.value)}
+              placeholder="User ID"
+              className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+            />
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={sharePercent}
+              onChange={(e) => setSharePercent(e.target.value)}
+              placeholder="Share %"
+              className="w-20 rounded border border-gray-300 px-2 py-1 text-sm"
+            />
+          </div>
+          {!financierValid && (
+            <div className="text-xs text-red-600">Provide both a financier user ID and a share, or leave both empty.</div>
+          )}
+          {financierValid && !shareValid && <div className="text-xs text-red-600">Share must be between 0% and 100%.</div>}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowTrustForm(false)}
+              className="flex-1 rounded bg-gray-200 px-2 py-1 text-sm text-gray-700 hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={buildOnPlacement.isPending || !canSubmitTrust}
+              onClick={handleBuildTrust}
+              className="flex-1 rounded bg-green-600 px-2 py-1 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              Confirm
+            </button>
+          </div>
         </div>
       )}
 
@@ -118,8 +233,35 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
             <Badge tone={occupant.enabled ? 'green' : 'gray'}>{occupant.enabled ? 'Enabled' : 'Disabled'}</Badge>
             {occupant.prioritized && <Badge tone="amber">Prioritised</Badge>}
           </div>
-          <div className="text-xs text-gray-500">
-            Target: <span className="font-medium text-gray-700">{targetLabel(occupant.target)}</span>
+          <div>
+            <div className="mb-1 text-xs font-medium text-gray-500">
+              Target <span className="font-normal text-gray-400">— current: {targetLabel(occupant.target)}</span>
+            </div>
+            <div className="flex gap-2">
+              <select
+                value={selectedTargetKey}
+                onChange={(e) => setSelectedTargetKey(e.target.value)}
+                className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+              >
+                <option value="none">Nearest enemy unit</option>
+                {targetOptions.map((opt) => (
+                  <option key={opt.key} value={opt.key}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={setBaseTarget.isPending || selectedTargetKey === targetKey(occupant.target)}
+                onClick={handleSetTarget}
+                className="rounded bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                Set
+              </button>
+            </div>
+            {setBaseTarget.isError && (
+              <div className="mt-1 text-xs text-red-600">{targetErrorMessage(setBaseTarget.error)}</div>
+            )}
           </div>
           <div>
             <div className="mb-1 text-xs font-medium text-gray-500">Financing</div>

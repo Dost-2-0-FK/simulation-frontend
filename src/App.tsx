@@ -21,7 +21,7 @@ export default function App() {
   const [hoveredUnit, setHoveredUnit] = useState<Unit | null>(null)
   const { data: placements = [] } = usePlacements()
   const { data: units = [] } = useUnits()
-  const userKey = useAuthStore((s) => s.userKey)
+  const userId = useAuthStore((s) => s.userId)
 
   const handleMapReady = useCallback((m: maplibregl.Map) => {
     setMap(m)
@@ -64,7 +64,7 @@ export default function App() {
         )}
         {map && hoveredUnit && <UnitMenu map={map} unit={hoveredUnit} />}
       </div>
-      {userKey ? <LogoutButton /> : <LoginModal />}
+      {userId ? <LogoutButton /> : <LoginModal />}
     </div>
   )
 }
