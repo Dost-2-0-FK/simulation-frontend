@@ -50,8 +50,8 @@ export function usePlacements() {
 }
 
 type BuildInput =
-  | { placementId: string; type: 'base'; financing?: Financing }
-  | { placementId: string; type: 'trust'; resource: string; financing?: Financing }
+  | { placementId: string; type: 'base'; financing: Financing[] }
+  | { placementId: string; type: 'trust'; resource: string; financing: Financing[] }
 
 export function useBuildOnPlacement() {
   const queryClient = useQueryClient()

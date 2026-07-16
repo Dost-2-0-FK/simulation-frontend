@@ -256,6 +256,8 @@ VITE_CREDIT_EXCHANGER_URL=...             # if frontend ever calls it directly
 ```
 
 ---
+## Building the Backend
+cargo build 2>&1 | tail -60
 
 ## Open questions (resolve before implementing)
 

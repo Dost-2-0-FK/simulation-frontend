@@ -66,8 +66,7 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
   const setBaseTarget = useSetBaseTarget()
   const [buildMode, setBuildMode] = useState<'base' | 'trust' | null>(null)
   const [resource, setResource] = useState('')
-  const [financierId, setFinancierId] = useState('')
-  const [sharePercent, setSharePercent] = useState('')
+  const [financierRows, setFinancierRows] = useState<{ financierId: string; sharePercent: string }[]>([])
 
   // Shares the ['placements'] query cache already populated by App.tsx — no extra fetch.
   const { data: allPlacements = [] } = usePlacements()
@@ -106,16 +105,28 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
     }
   }, [map, placement.lng, placement.lat])
 
-  const trimmedFinancierId = financierId.trim()
-  const parsedShare = sharePercent.trim() === '' ? null : Number(sharePercent) / 100
-  const shareValid = parsedShare === null || (Number.isFinite(parsedShare) && parsedShare > 0 && parsedShare <= 1)
-  // Financier and share must be supplied together, or not at all.
-  const financierValid = (trimmedFinancierId === '') === (parsedShare === null)
-  const canSubmitBuild = financierValid && shareValid && (buildMode !== 'trust' || resource.trim() !== '')
+  // Each row parses independently: blank rows are dropped, fully-filled rows become a Financing,
+  // and a row with only one of the two fields filled makes the whole form invalid.
+  const parsedFinancierRows = financierRows.map((row) => {
+    const trimmedFinancierId = row.financierId.trim()
+    const parsedShare = row.sharePercent.trim() === '' ? null : Number(row.sharePercent) / 100
+    const shareValid = parsedShare === null || (Number.isFinite(parsedShare) && parsedShare > 0 && parsedShare <= 1)
+    const rowValid = (trimmedFinancierId === '') === (parsedShare === null) && shareValid
+    return { trimmedFinancierId, parsedShare, shareValid, rowValid }
+  })
+  const financierRowsValid = parsedFinancierRows.every((row) => row.rowValid)
+  const financing: Financing[] = parsedFinancierRows
+    .filter((row) => row.trimmedFinancierId !== '' && row.parsedShare !== null)
+    .map((row) => ({ financierId: row.trimmedFinancierId, share: row.parsedShare as number }))
+  const canSubmitBuild = financierRowsValid && (buildMode !== 'trust' || resource.trim() !== '')
+
+  const addFinancierRow = () => setFinancierRows((rows) => [...rows, { financierId: '', sharePercent: '' }])
+  const removeFinancierRow = (index: number) => setFinancierRows((rows) => rows.filter((_, i) => i !== index))
+  const updateFinancierRow = (index: number, patch: Partial<{ financierId: string; sharePercent: string }>) =>
+    setFinancierRows((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
 
   const handleConfirmBuild = () => {
     if (!canSubmitBuild || buildMode === null) return
-    const financing = trimmedFinancierId && parsedShare !== null ? { financierId: trimmedFinancierId, share: parsedShare } : undefined
     const input =
       buildMode === 'base'
         ? ({ placementId: placement.id, type: 'base' as const, financing })
@@ -180,37 +191,74 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
               />
             </div>
           )}
-          <div className="text-xs font-medium text-gray-500">Financier (optional)</div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={financierId}
-              onChange={(e) => setFinancierId(e.target.value)}
-              placeholder="User ID"
-              className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
-            />
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={sharePercent}
-              onChange={(e) => setSharePercent(e.target.value)}
-              placeholder="Share %"
-              className="w-20 rounded border border-gray-300 px-2 py-1 text-sm"
-            />
-          </div>
-          {!financierValid && (
-            <div className="text-xs text-red-600">Provide both a financier user ID and a share, or leave both empty.</div>
-          )}
-          {financierValid && !shareValid && <div className="text-xs text-red-600">Share must be between 0% and 100%.</div>}
+          <div className="text-xs font-medium text-gray-500">Financiers (optional)</div>
+          {financierRows.map((row, index) => {
+            const rowState = parsedFinancierRows[index]
+            return (
+              <div key={index} className="relative rounded-md border border-gray-200 bg-gray-50 p-2 pr-7 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => removeFinancierRow(index)}
+                  aria-label="Remove financier"
+                  className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-600"
+                >
+                  ×
+                </button>
+                <div className="space-y-1.5">
+                  <div>
+                    <label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                      User ID
+                    </label>
+                    <input
+                      type="text"
+                      value={row.financierId}
+                      onChange={(e) => updateFinancierRow(index, { financierId: e.target.value })}
+                      placeholder="e.g. player-42"
+                      className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                      Share
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={row.sharePercent}
+                        onChange={(e) => updateFinancierRow(index, { sharePercent: e.target.value })}
+                        placeholder="0"
+                        className="w-16 rounded border border-gray-300 px-2 py-1 text-sm"
+                      />
+                      <span className="text-xs text-gray-400">%</span>
+                    </div>
+                  </div>
+                </div>
+                {!rowState.rowValid && (
+                  <div className="mt-1.5 text-xs text-red-600">
+                    {rowState.shareValid
+                      ? 'Provide both a financier user ID and a share, or leave both empty.'
+                      : 'Share must be between 0% and 100%.'}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          <button
+            type="button"
+            onClick={addFinancierRow}
+            className="text-xs font-medium text-blue-600 hover:text-blue-800"
+          >
+            + add financier
+          </button>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => {
                 setBuildMode(null)
                 setResource('')
-                setFinancierId('')
-                setSharePercent('')
+                setFinancierRows([])
               }}
               className="flex-1 rounded bg-gray-200 px-2 py-1 text-sm text-gray-700 hover:bg-gray-300"
             >

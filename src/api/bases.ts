@@ -7,10 +7,10 @@ export async function getBases(): Promise<Base[]> {
   return apiGet<Base[]>('/api/bases')
 }
 
-// `financing` is optional — when omitted, the bloc covers the full cost. When given,
-// the financier covers `financing.share` (0-1) and the bloc covers the remainder.
-export async function createBase(placementId: string, financing?: Financing): Promise<void> {
-  return apiPost('/api/bases', { placementId, payment: financing ? [financing] : [] })
+// `financing` is optional — when omitted (or empty), the bloc covers the full cost. When
+// given, the financiers together cover the summed `share` (0-1) and the bloc covers the remainder.
+export async function createBase(placementId: string, financing: Financing[] = []): Promise<void> {
+  return apiPost('/api/bases', { placementId, payment: financing })
 }
 
 // `target` controls where this base's spawned units head once no enemy unit is closer —
