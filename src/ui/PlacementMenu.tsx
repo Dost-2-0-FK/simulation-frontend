@@ -64,7 +64,7 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
   const [pos, setPos] = useState(() => map.project([placement.lng, placement.lat]))
   const buildOnPlacement = useBuildOnPlacement()
   const setBaseTarget = useSetBaseTarget()
-  const [showTrustForm, setShowTrustForm] = useState(false)
+  const [buildMode, setBuildMode] = useState<'base' | 'trust' | null>(null)
   const [resource, setResource] = useState('')
   const [financierId, setFinancierId] = useState('')
   const [sharePercent, setSharePercent] = useState('')
@@ -106,24 +106,21 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
     }
   }, [map, placement.lng, placement.lat])
 
-  const handleBuildBase = () => {
-    buildOnPlacement.mutate({ placementId: placement.id, type: 'base' }, { onSuccess: onClose })
-  }
-
   const trimmedFinancierId = financierId.trim()
   const parsedShare = sharePercent.trim() === '' ? null : Number(sharePercent) / 100
   const shareValid = parsedShare === null || (Number.isFinite(parsedShare) && parsedShare > 0 && parsedShare <= 1)
   // Financier and share must be supplied together, or not at all.
   const financierValid = (trimmedFinancierId === '') === (parsedShare === null)
-  const canSubmitTrust = resource.trim() !== '' && financierValid && shareValid
+  const canSubmitBuild = financierValid && shareValid && (buildMode !== 'trust' || resource.trim() !== '')
 
-  const handleBuildTrust = () => {
-    if (!canSubmitTrust) return
+  const handleConfirmBuild = () => {
+    if (!canSubmitBuild || buildMode === null) return
     const financing = trimmedFinancierId && parsedShare !== null ? { financierId: trimmedFinancierId, share: parsedShare } : undefined
-    buildOnPlacement.mutate(
-      { placementId: placement.id, type: 'trust', resource: resource.trim(), financing },
-      { onSuccess: onClose },
-    )
+    const input =
+      buildMode === 'base'
+        ? ({ placementId: placement.id, type: 'base' as const, financing })
+        : ({ placementId: placement.id, type: 'trust' as const, resource: resource.trim(), financing })
+    buildOnPlacement.mutate(input, { onSuccess: onClose })
   }
 
   const accentClass = occupant?.type === 'base' ? 'border-t-blue-600' : occupant?.type === 'trust' ? 'border-t-green-600' : 'border-t-gray-300'
@@ -150,20 +147,18 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
         <div className="text-xs text-gray-500">Zone: {placement.zone}</div>
       </div>
 
-      {!occupant && !showTrustForm && (
+      {!occupant && buildMode === null && (
         <div className="flex gap-2">
           <button
             type="button"
-            disabled={buildOnPlacement.isPending}
-            onClick={handleBuildBase}
+            onClick={() => setBuildMode('base')}
             className="flex-1 rounded bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
           >
             Build Base
           </button>
           <button
             type="button"
-            disabled={buildOnPlacement.isPending}
-            onClick={() => setShowTrustForm(true)}
+            onClick={() => setBuildMode('trust')}
             className="flex-1 rounded bg-green-600 px-2 py-1 text-sm text-white hover:bg-green-700 disabled:opacity-50"
           >
             Build Trust
@@ -171,18 +166,20 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
         </div>
       )}
 
-      {!occupant && showTrustForm && (
+      {!occupant && buildMode !== null && (
         <div className="space-y-2">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Resource</label>
-            <input
-              type="text"
-              value={resource}
-              onChange={(e) => setResource(e.target.value)}
-              placeholder="e.g. oil"
-              className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
-            />
-          </div>
+          {buildMode === 'trust' && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500">Resource</label>
+              <input
+                type="text"
+                value={resource}
+                onChange={(e) => setResource(e.target.value)}
+                placeholder="e.g. oil"
+                className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+              />
+            </div>
+          )}
           <div className="text-xs font-medium text-gray-500">Financier (optional)</div>
           <div className="flex gap-2">
             <input
@@ -209,16 +206,21 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setShowTrustForm(false)}
+              onClick={() => {
+                setBuildMode(null)
+                setResource('')
+                setFinancierId('')
+                setSharePercent('')
+              }}
               className="flex-1 rounded bg-gray-200 px-2 py-1 text-sm text-gray-700 hover:bg-gray-300"
             >
               Cancel
             </button>
             <button
               type="button"
-              disabled={buildOnPlacement.isPending || !canSubmitTrust}
-              onClick={handleBuildTrust}
-              className="flex-1 rounded bg-green-600 px-2 py-1 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+              disabled={buildOnPlacement.isPending || !canSubmitBuild}
+              onClick={handleConfirmBuild}
+              className={`flex-1 rounded px-2 py-1 text-sm text-white disabled:opacity-50 ${buildMode === 'base' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`}
             >
               Confirm
             </button>

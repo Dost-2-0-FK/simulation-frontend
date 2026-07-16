@@ -50,14 +50,16 @@ export function usePlacements() {
 }
 
 type BuildInput =
-  | { placementId: string; type: 'base' }
+  | { placementId: string; type: 'base'; financing?: Financing }
   | { placementId: string; type: 'trust'; resource: string; financing?: Financing }
 
 export function useBuildOnPlacement() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: BuildInput) =>
-      input.type === 'base' ? createBase(input.placementId) : createTrust(input.placementId, input.resource, input.financing),
+      input.type === 'base'
+        ? createBase(input.placementId, input.financing)
+        : createTrust(input.placementId, input.resource, input.financing),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['placements'] })
     },

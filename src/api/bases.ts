@@ -1,4 +1,5 @@
 import type { Base, BaseTarget } from '../types/base'
+import type { Financing } from '../types/financing'
 import { apiGet, apiPatch, apiPost } from './client'
 
 // Wire shape of GET /api/bases, confirmed against ../simulation/src/handlers/bases.rs (BaseResponse).
@@ -6,9 +7,10 @@ export async function getBases(): Promise<Base[]> {
   return apiGet<Base[]>('/api/bases')
 }
 
-// No financier — the zone/bloc covers the full cost.
-export async function createBase(placementId: string): Promise<void> {
-  return apiPost('/api/bases', { placementId, payment: [] })
+// `financing` is optional — when omitted, the bloc covers the full cost. When given,
+// the financier covers `financing.share` (0-1) and the bloc covers the remainder.
+export async function createBase(placementId: string, financing?: Financing): Promise<void> {
+  return apiPost('/api/bases', { placementId, payment: financing ? [financing] : [] })
 }
 
 // `target` controls where this base's spawned units head once no enemy unit is closer —
