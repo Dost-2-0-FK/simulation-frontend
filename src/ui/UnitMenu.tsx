@@ -5,6 +5,7 @@ import type { Unit, UnitTarget } from '../types/unit'
 interface Props {
   map: maplibregl.Map
   unit: Unit
+  inCombat: boolean
 }
 
 function targetLabel(target: UnitTarget): string {
@@ -20,15 +21,15 @@ function targetLabel(target: UnitTarget): string {
   }
 }
 
-function Badge({ children, tone }: { children: React.ReactNode; tone: 'blue' | 'gray' }) {
-  const toneClasses = { blue: 'bg-blue-100 text-blue-700', gray: 'bg-gray-100 text-gray-500' }[tone]
+function Badge({ children, tone }: { children: React.ReactNode; tone: 'blue' | 'gray' | 'red' }) {
+  const toneClasses = { blue: 'bg-blue-100 text-blue-700', gray: 'bg-gray-100 text-gray-500', red: 'bg-red-100 text-red-700' }[tone]
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${toneClasses}`}>{children}</span>
 }
 
 // Read-only hover tooltip for a unit — unlike PlacementMenu it has no close button or
 // actions (there's nothing to build/mutate on a unit) and no pointer events of its own,
 // so hovering the tooltip itself never blocks the underlying map's mouseleave detection.
-export default function UnitMenu({ map, unit }: Props) {
+export default function UnitMenu({ map, unit, inCombat }: Props) {
   const [pos, setPos] = useState(() => map.project([unit.lng, unit.lat]))
 
   // Keep the tooltip pinned to the unit marker as the map pans/zooms.
@@ -55,6 +56,7 @@ export default function UnitMenu({ map, unit }: Props) {
       <div className="flex flex-wrap gap-1">
         <Badge tone="blue">Bloc: {unit.bloc ?? 'None'}</Badge>
         <Badge tone="gray">{unit.base ? `Base #${unit.base.id}` : 'No base'}</Badge>
+        {inCombat && <Badge tone="red">In combat</Badge>}
       </div>
 
       {unit.base && <div className="mt-2 text-xs text-gray-500">Zone: {unit.base.zone}</div>}

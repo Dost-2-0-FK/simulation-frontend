@@ -13,9 +13,14 @@ export async function createBase(placementId: string, financing: Financing[] = [
   return apiPost('/api/bases', { placementId, payment: financing })
 }
 
-// `target` controls where this base's spawned units head once no enemy unit is closer —
-// `{ type: 'none' }` clears it back to "chase nearest enemy unit only". Wire shape matches
-// TargetBody in ../simulation/src/handlers/bases.rs exactly, so BaseTarget serializes as-is.
-export async function setBaseTarget(id: number, target: BaseTarget): Promise<void> {
-  return apiPatch(`/api/bases/${id}`, { target })
+// All three fields are independently optional server-side (PatchBaseBody in
+// ../simulation/src/handlers/bases.rs) — send only what's changing.
+export interface BasePatch {
+  enabled?: boolean
+  prioritized?: boolean
+  target?: BaseTarget
+}
+
+export async function patchBase(id: number, patch: BasePatch): Promise<void> {
+  return apiPatch(`/api/bases/${id}`, patch)
 }

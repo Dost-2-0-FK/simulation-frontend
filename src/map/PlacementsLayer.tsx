@@ -2,7 +2,15 @@ import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import type { FeatureCollection, Point } from 'geojson'
 import type { Placement } from '../types/placement'
-import { ICON_PIXEL_RATIO, ICON_SIZE_FACTOR, getIconSpec, loadIconImage, registerIconSpec, specForPlacement } from './placementIcons'
+import {
+  HOVER_ICON_SIZE_EXPRESSION,
+  ICON_PIXEL_RATIO,
+  ICON_SIZE_FACTOR,
+  getIconSpec,
+  loadIconImage,
+  registerIconSpec,
+  specForPlacement,
+} from './placementIcons'
 
 interface Props {
   map: maplibregl.Map | null
@@ -13,13 +21,16 @@ interface Props {
 const SOURCE_ID = 'placements'
 const LAYER_ID = 'placements-icons'
 
-function toGeoJSON(placements: Placement[]): FeatureCollection<Point, { id: string; icon: string }> {
+function toGeoJSON(
+  placements: Placement[],
+  hoveredId: string | null,
+): FeatureCollection<Point, { id: string; icon: string; hover: boolean }> {
   return {
     type: 'FeatureCollection',
     features: placements.map((p) => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
-      properties: { id: p.id, icon: registerIconSpec(specForPlacement(p)) },
+      properties: { id: p.id, icon: registerIconSpec(specForPlacement(p)), hover: p.id === hoveredId },
     })),
   }
 }
@@ -31,6 +42,10 @@ export default function PlacementsLayer({ map, placements, onPlacementClick }: P
   useEffect(() => {
     placementsRef.current = placements
   }, [placements])
+
+  // Tracks which placement is currently hovered so the source's 'hover' property (read by
+  // the icon-size expression to enlarge the marker) is only pushed when it actually changes.
+  const hoveredIdRef = useRef<string | null>(null)
 
   // Register map listeners once per map instance. The source + layer are
   // re-added on every 'styledata' event so they survive MapLibre style resets
@@ -52,11 +67,20 @@ export default function PlacementsLayer({ map, placements, onPlacementClick }: P
       if (placement) onPlacementClick?.(placement)
     }
 
-    const handleMouseEnter = () => {
+    const handleMouseMove = (e: maplibregl.MapLayerMouseEvent) => {
+      const id = e.features?.[0]?.properties?.id as string | undefined
       map.getCanvas().style.cursor = 'pointer'
+      if (id === hoveredIdRef.current) return
+      hoveredIdRef.current = id ?? null
+      const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined
+      source?.setData(toGeoJSON(placementsRef.current, hoveredIdRef.current))
     }
     const handleMouseLeave = () => {
       map.getCanvas().style.cursor = ''
+      if (hoveredIdRef.current === null) return
+      hoveredIdRef.current = null
+      const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined
+      source?.setData(toGeoJSON(placementsRef.current, null))
     }
 
     // Called on every 'styledata' event (fired after any style update) and
@@ -68,7 +92,7 @@ export default function PlacementsLayer({ map, placements, onPlacementClick }: P
 
       map.addSource(SOURCE_ID, {
         type: 'geojson',
-        data: toGeoJSON(placementsRef.current),
+        data: toGeoJSON(placementsRef.current, hoveredIdRef.current),
       })
 
       map.addLayer({
@@ -77,7 +101,7 @@ export default function PlacementsLayer({ map, placements, onPlacementClick }: P
         source: SOURCE_ID,
         layout: {
           'icon-image': ['get', 'icon'],
-          'icon-size': ICON_SIZE_FACTOR,
+          'icon-size': HOVER_ICON_SIZE_EXPRESSION(ICON_SIZE_FACTOR),
           'icon-allow-overlap': true,
         },
       })
@@ -85,7 +109,7 @@ export default function PlacementsLayer({ map, placements, onPlacementClick }: P
 
     map.on('styleimagemissing', handleStyleImageMissing)
     map.on('click', LAYER_ID, handleClick)
-    map.on('mouseenter', LAYER_ID, handleMouseEnter)
+    map.on('mousemove', LAYER_ID, handleMouseMove)
     map.on('mouseleave', LAYER_ID, handleMouseLeave)
     // 'styledata' can fire while sources added elsewhere (world-map image,
     // zone geojson) are still loading, so isStyleLoaded() is false on that
@@ -98,7 +122,7 @@ export default function PlacementsLayer({ map, placements, onPlacementClick }: P
     return () => {
       map.off('styleimagemissing', handleStyleImageMissing)
       map.off('click', LAYER_ID, handleClick)
-      map.off('mouseenter', LAYER_ID, handleMouseEnter)
+      map.off('mousemove', LAYER_ID, handleMouseMove)
       map.off('mouseleave', LAYER_ID, handleMouseLeave)
       map.off('styledata', ensureLayer)
       map.off('idle', ensureLayer)
@@ -112,7 +136,7 @@ export default function PlacementsLayer({ map, placements, onPlacementClick }: P
   useEffect(() => {
     if (!map) return
     const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined
-    source?.setData(toGeoJSON(placements))
+    source?.setData(toGeoJSON(placements, hoveredIdRef.current))
   }, [map, placements])
 
   return null

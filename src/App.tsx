@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import type maplibregl from 'maplibre-gl'
 import MapView from './map/MapView'
 import PlacementsLayer from './map/PlacementsLayer'
@@ -8,9 +8,11 @@ import PlacementMenu from './ui/PlacementMenu'
 import UnitMenu from './ui/UnitMenu'
 import LoginModal from './ui/LoginModal'
 import LogoutButton from './ui/LogoutButton'
+import BlocPanel from './ui/BlocPanel'
 import { MAP_WINDOW } from './config/mapLayout'
 import { usePlacements } from './api/placements'
 import { useUnits } from './api/units'
+import { useCombats } from './api/combats'
 import { useAuthStore } from './store'
 import type { Placement } from './types/placement'
 import type { Unit } from './types/unit'
@@ -21,7 +23,22 @@ export default function App() {
   const [hoveredUnit, setHoveredUnit] = useState<Unit | null>(null)
   const { data: placements = [] } = usePlacements()
   const { data: units = [] } = useUnits()
+  const { data: combats = [] } = useCombats()
   const userId = useAuthStore((s) => s.userId)
+
+  // Cross-reference ongoing combats' participant unit IDs against currently-rendered units,
+  // per CLAUDE.md's "Combat visualisation" — combat state never arrives as a field on unit
+  // objects, it's a separate resource that has to be joined against unit IDs client-side.
+  const combatUnitIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const combat of combats) {
+      if (combat.state !== 'ongoing') continue
+      for (const group of combat.units) {
+        for (const id of group.unitIds) ids.add(id)
+      }
+    }
+    return ids
+  }, [combats])
 
   const handleMapReady = useCallback((m: maplibregl.Map) => {
     setMap(m)
@@ -57,14 +74,21 @@ export default function App() {
       >
         <MapView onMapReady={handleMapReady} />
         <PlacementsLayer map={map} placements={placements} onPlacementClick={setSelectedPlacement} />
-        <UnitsLayer map={map} units={units} onUnitHover={setHoveredUnit} />
+        <UnitsLayer map={map} units={units} combatUnitIds={combatUnitIds} onUnitHover={setHoveredUnit} />
         <PixiOverlay map={map} />
         {map && selectedPlacement && (
           <PlacementMenu map={map} placement={selectedPlacement} onClose={() => setSelectedPlacement(null)} />
         )}
-        {map && hoveredUnit && <UnitMenu map={map} unit={hoveredUnit} />}
+        {map && hoveredUnit && <UnitMenu map={map} unit={hoveredUnit} inCombat={combatUnitIds.has(hoveredUnit.id)} />}
       </div>
-      {userId ? <LogoutButton /> : <LoginModal />}
+      {userId ? (
+        <>
+          <BlocPanel />
+          <LogoutButton />
+        </>
+      ) : (
+        <LoginModal />
+      )}
     </div>
   )
 }

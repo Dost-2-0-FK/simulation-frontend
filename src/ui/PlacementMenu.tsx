@@ -3,7 +3,9 @@ import type maplibregl from 'maplibre-gl'
 import type { Placement } from '../types/placement'
 import type { BaseTarget } from '../types/base'
 import type { Financing } from '../types/financing'
-import { useBuildOnPlacement, usePlacements, useSetBaseTarget, buildErrorMessage, targetErrorMessage } from '../api/placements'
+import { useBuildOnPlacement, usePlacements, usePatchBase, buildErrorMessage, patchErrorMessage } from '../api/placements'
+import { useCurrentUser, canWriteBloc, canWriteZone } from '../api/auth'
+import { useZones } from '../api/zones'
 
 interface Props {
   map: maplibregl.Map
@@ -63,7 +65,11 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: 'green' | 
 export default function PlacementMenu({ map, placement, onClose }: Props) {
   const [pos, setPos] = useState(() => map.project([placement.lng, placement.lat]))
   const buildOnPlacement = useBuildOnPlacement()
-  const setBaseTarget = useSetBaseTarget()
+  // Separate mutation instances per action (target/enabled/prioritized) so each button's
+  // isPending/isError reflects only the action it triggered, not the other two.
+  const setBaseTarget = usePatchBase()
+  const toggleBaseEnabled = usePatchBase()
+  const toggleBasePrioritized = usePatchBase()
   const [buildMode, setBuildMode] = useState<'base' | 'trust' | null>(null)
   const [resource, setResource] = useState('')
   const [financierRows, setFinancierRows] = useState<{ financierId: string; sharePercent: string }[]>([])
@@ -71,6 +77,15 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
   // Shares the ['placements'] query cache already populated by App.tsx — no extra fetch.
   const { data: allPlacements = [] } = usePlacements()
   const { occupant } = placement
+
+  // Gate build/patch actions on permissions from GET /api/me so the UI can disable what the
+  // user can't do, rather than letting them submit and only find out from a 403 afterwards.
+  const { data: currentUser } = useCurrentUser()
+  const { data: zones = [] } = useZones()
+  const placementBloc = zones.find((z) => z.name === placement.zone)?.bloc ?? null
+  const canBuildBase = placementBloc !== null && canWriteBloc(currentUser, placementBloc)
+  const canBuildTrust = canWriteZone(currentUser, placement.zone)
+  const canManageBase = occupant?.type === 'base' && canWriteBloc(currentUser, occupant.bloc)
   const targetOptions = useMemo(() => {
     if (occupant?.type !== 'base') return []
     return allPlacements
@@ -92,7 +107,17 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
 
   const handleSetTarget = () => {
     if (occupant?.type !== 'base') return
-    setBaseTarget.mutate({ baseId: occupant.id, target: parseTargetKey(selectedTargetKey) })
+    setBaseTarget.mutate({ baseId: occupant.id, patch: { target: parseTargetKey(selectedTargetKey) } })
+  }
+
+  const handleToggleEnabled = () => {
+    if (occupant?.type !== 'base') return
+    toggleBaseEnabled.mutate({ baseId: occupant.id, patch: { enabled: !occupant.enabled } })
+  }
+
+  const handleTogglePrioritized = () => {
+    if (occupant?.type !== 'base') return
+    toggleBasePrioritized.mutate({ baseId: occupant.id, patch: { prioritized: !occupant.prioritized } })
   }
 
   // Keep the menu pinned to the placement marker as the map pans/zooms.
@@ -162,6 +187,8 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
         <div className="flex gap-2">
           <button
             type="button"
+            disabled={!canBuildBase}
+            title={canBuildBase ? undefined : "You don't have write access to this bloc."}
             onClick={() => setBuildMode('base')}
             className="flex-1 rounded bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
           >
@@ -169,6 +196,8 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
           </button>
           <button
             type="button"
+            disabled={!canBuildTrust}
+            title={canBuildTrust ? undefined : "You don't have write access to this zone."}
             onClick={() => setBuildMode('trust')}
             className="flex-1 rounded bg-green-600 px-2 py-1 text-sm text-white hover:bg-green-700 disabled:opacity-50"
           >
@@ -280,9 +309,31 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
         <div className="space-y-2">
           <div className="flex flex-wrap gap-1">
             <Badge tone="gray">Bloc: {occupant.bloc}</Badge>
-            <Badge tone={occupant.enabled ? 'green' : 'gray'}>{occupant.enabled ? 'Enabled' : 'Disabled'}</Badge>
-            {occupant.prioritized && <Badge tone="amber">Prioritised</Badge>}
+            <button
+              type="button"
+              disabled={!canManageBase || toggleBaseEnabled.isPending}
+              title={canManageBase ? undefined : "You don't have write access to this bloc."}
+              onClick={handleToggleEnabled}
+              className={`rounded-full px-2 py-0.5 text-xs font-medium disabled:opacity-50 ${occupant.enabled ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+            >
+              {occupant.enabled ? 'Enabled' : 'Disabled'}
+            </button>
+            <button
+              type="button"
+              disabled={!canManageBase || toggleBasePrioritized.isPending}
+              title={canManageBase ? undefined : "You don't have write access to this bloc."}
+              onClick={handleTogglePrioritized}
+              className={`rounded-full px-2 py-0.5 text-xs font-medium disabled:opacity-50 ${occupant.prioritized ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+            >
+              {occupant.prioritized ? 'Prioritised' : 'Not prioritised'}
+            </button>
           </div>
+          {toggleBaseEnabled.isError && (
+            <div className="text-xs text-red-600">{patchErrorMessage(toggleBaseEnabled.error)}</div>
+          )}
+          {toggleBasePrioritized.isError && (
+            <div className="text-xs text-red-600">{patchErrorMessage(toggleBasePrioritized.error)}</div>
+          )}
           <div>
             <div className="mb-1 text-xs font-medium text-gray-500">
               Target <span className="font-normal text-gray-400">— current: {targetLabel(occupant.target)}</span>
@@ -291,7 +342,8 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
               <select
                 value={selectedTargetKey}
                 onChange={(e) => setSelectedTargetKey(e.target.value)}
-                className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+                disabled={!canManageBase}
+                className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm disabled:opacity-50"
               >
                 <option value="none">Nearest enemy unit</option>
                 {targetOptions.map((opt) => (
@@ -302,7 +354,8 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
               </select>
               <button
                 type="button"
-                disabled={setBaseTarget.isPending || selectedTargetKey === targetKey(occupant.target)}
+                disabled={!canManageBase || setBaseTarget.isPending || selectedTargetKey === targetKey(occupant.target)}
+                title={canManageBase ? undefined : "You don't have write access to this bloc."}
                 onClick={handleSetTarget}
                 className="rounded bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
               >
@@ -310,7 +363,7 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
               </button>
             </div>
             {setBaseTarget.isError && (
-              <div className="mt-1 text-xs text-red-600">{targetErrorMessage(setBaseTarget.error)}</div>
+              <div className="mt-1 text-xs text-red-600">{patchErrorMessage(setBaseTarget.error)}</div>
             )}
           </div>
           <div>

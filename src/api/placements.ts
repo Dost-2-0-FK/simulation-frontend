@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Placement } from '../types/placement'
 import type { Financing } from '../types/financing'
-import type { BaseTarget } from '../types/base'
 import { apiGet, ApiError } from './client'
-import { getBases, createBase, setBaseTarget } from './bases'
+import { getBases, createBase, patchBase } from './bases'
+import type { BasePatch } from './bases'
 import { getTrusts, createTrust } from './trusts'
 import { INTERVALS } from './intervals'
 import { useAuthStore } from '../store'
@@ -83,10 +83,13 @@ export function buildErrorMessage(error: unknown): string {
   return 'Failed to build — try again.'
 }
 
-export function useSetBaseTarget() {
+// Backs the target picker, and the enable/disable + prioritise toggles — each call site gets
+// its own mutation instance (like PlacementMenu.tsx does) so isPending/isError track the
+// specific action the user triggered rather than being shared across all three.
+export function usePatchBase() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ baseId, target }: { baseId: number; target: BaseTarget }) => setBaseTarget(baseId, target),
+    mutationFn: ({ baseId, patch }: { baseId: number; patch: BasePatch }) => patchBase(baseId, patch),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['placements'] })
     },
@@ -98,7 +101,8 @@ export function useSetBaseTarget() {
   })
 }
 
-// Human-readable explanation for a failed target update — same failure modes as build.
-export function targetErrorMessage(error: unknown): string {
+// Human-readable explanation for a failed base patch (target/enabled/prioritized) — same
+// failure modes as build.
+export function patchErrorMessage(error: unknown): string {
   return buildErrorMessage(error)
 }

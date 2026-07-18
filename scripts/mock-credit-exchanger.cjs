@@ -31,6 +31,14 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // GET /api/users -> resource totals lookup (summed across every non-bank user) when
+  // listing trusts. An empty list is a valid Vec<CreditUserResponse> and sums to zero.
+  if (req.method === 'GET' && url.pathname === '/api/users') {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end('[]')
+    return
+  }
+
   // POST /api/users, /api/users/:id/bookings, /api/users/:id/subscriptions
   // PATCH /api/users/:id
   if (

@@ -32,14 +32,28 @@ src/
 
 ## Backend reference
 
-> **Note**: The backend is in a separate Rust repository at `../game-backend`.
-> When implementing API calls or data shapes, read the actual source rather than
+> **Note**: The backend is the sibling Rust project at `../simulation` (not a
+> separate `game-backend` repo, as earlier drafts of this file assumed). When
+> implementing API calls or data shapes, read the actual source rather than
 > guessing. Key locations:
-> - API route handlers: `../game-backend/src/api/`
-> - Domain types: `../game-backend/src/models/` (or equivalent)
-> - The credit-exchanger service has its own API — see backend docs for base URL config.
+> - API route handlers: `../simulation/src/handlers/` (one file per resource:
+>   `bases.rs`, `trusts.rs`, `units.rs`, `blocs.rs`, `placements.rs`,
+>   `combats.rs`, `zones.rs`, `auth.rs`)
+> - Domain types: `../simulation/src/domain/`
+> - The credit-exchanger service is only ever called server-side (see
+>   `../simulation/src/services/credit_exchange_service/`) — the frontend
+>   never calls it directly.
 
-The backend API is REST (JSON). Base URL comes from `VITE_API_BASE_URL` env var.
+The backend API is REST (JSON), documented live via Swagger UI at
+`http://127.0.0.1:8080/swagger-ui/` (raw OpenAPI spec at
+`/api-docs/openapi.json`) whenever the backend is running (`cargo run` from
+`../simulation`). Base URL comes from the `VITE_API_BASE_URL` env var.
+
+**→ See [`API_INTEGRATION.md`](./API_INTEGRATION.md) for the authoritative,
+continuously-updated map of every backend endpoint to its frontend wiring
+status — what's called and how, and what params a not-yet-wired endpoint
+would need.** Update that file (not this one) in the same commit whenever
+`src/api/*.ts` changes.
 
 ---
 
@@ -97,9 +111,12 @@ unit { lng: float, lat: float } → map.project(lng, lat) → Pixi x, y
 ```
 
 **No client-side combat detection.** Do not attempt to infer combat from position
-proximity. Combat state is authoritative from the backend only — it arrives as a
-field on unit objects (e.g. `in_combat: boolean` or similar — confirm field name
-from `../game-backend`).
+proximity. Combat state is authoritative from the backend only — but it does
+**not** arrive as a field on unit objects. There is no `in_combat` (or
+similarly named) field on `UnitResponse` — combat is a separate resource at
+`GET /api/combats`, polled via `useCombats()` (`src/api/combats.ts`) and
+cross-referenced by unit ID in `App.tsx` (see "Combat visualisation" below).
+See `API_INTEGRATION.md` for the full response shape.
 
 **Movement animation:** between polls, animate unit sprites by tweening from their
 last known position to the newly received position. Use a fixed tween duration
@@ -164,9 +181,20 @@ Also re-render on `map.on('move')` and `map.on('zoom')` to avoid 1-frame lag.
 | Bases, Trusts | Pixi sprites |
 | Military units | Pixi sprites |
 | Unit movement (tween between polled positions) | Pixi tweened animation |
-| Combat indicator (server-flagged units) | Pixi (triggered by `in_combat` flag from API) |
+| Combat indicator (units/structures in `GET /api/combats`) | MapLibre — see below |
 | Movement trails | Pixi (shader-based, fading path behind unit) |
 | HUD / build panel / resource bar | React (DOM, outside canvas) |
+
+> **Note on the rows above:** "Bases, Trusts" / "Military units" / "Unit
+> movement" describe the intended Pixi-based architecture, but as
+> implemented today those are MapLibre symbol-layer icons (`PlacementsLayer.tsx`,
+> `UnitsLayer.tsx`, `placementIcons.ts`), not Pixi sprites — `PixiOverlay.tsx`
+> currently mounts an empty, transparent canvas with nothing drawn on it. The
+> combat indicator follows the pattern that's actually in place today: it's a
+> red ring drawn into a unit's existing MapLibre marker icon (new `'combat'`
+> `IconState` in `placementIcons.ts`), driven by `useCombats()` — see "Combat
+> visualisation" below and `API_INTEGRATION.md`'s Combats section. If/when
+> bases/trusts/units migrate to actual Pixi sprites, move this along with them.
 
 ### Adding a new MapLibre source/layer (gotcha)
 
@@ -208,10 +236,22 @@ adds itself to the map after mount.
 4. Optimistic UI update in Zustand; rollback on error
 
 ### Combat visualisation
-Combat is detected server-side. When a unit's API response includes a combat flag:
-- Show a distinct visual state on the sprite (e.g. clash animation, colour shift)
-- Do not infer combat from position — only trust the backend flag
-- Outcome (unit removal) arrives in the next poll; remove the sprite then
+Combat is detected server-side, but **not** surfaced as a flag on unit objects —
+it lives at `GET /api/combats`, polled by `useCombats()` (`src/api/combats.ts`,
+same cadence as units) and consumed as follows:
+- `App.tsx` cross-references every `ongoing` combat's `units[].unitIds`
+  against currently-rendered units into a `combatUnitIds: Set<string>`, and
+  threads that into `UnitsLayer`/`placementIcons.ts` (a red ring on the
+  unit's marker icon — new `'combat'` `IconState`) and `UnitMenu` (a red
+  "In combat" badge on hover)
+- Do not infer combat from position — only trust data from this endpoint
+- **Not yet built:** a combat's `structure`/`position` fields, and its
+  `events` (`unitsKilled` / `trustDestroyed` / `baseDestroyed`) which
+  describe outcomes as they happen — consuming these would mean
+  cross-referencing `events` against the next `/api/units`, `/api/bases`, or
+  `/api/trusts` poll before removing a sprite/marker, e.g. for a kill-feed or
+  a marker at the combat's location. See `API_INTEGRATION.md`'s Combats
+  section for the exact shape.
 
 ### Unit movement
 - Positions are float lng/lat coordinates, polled every ~10s
@@ -225,35 +265,29 @@ Combat is detected server-side. When a unit's API response includes a combat fla
 
 ---
 
-## API conventions (fill in when confirmed)
+## API conventions
 
-> These are placeholders based on the backend spec. Replace with real endpoints
-> once the API is confirmed or read from `../game-backend`.
-
-```
-GET  /api/zones                              → all zones with bloc + placement info
-GET  /api/placements                         → placement states (empty/base/trust)
-GET  /api/units                              → current unit positions (float lng/lat) + combat state
-POST /api/base/create                        → place a base on a placement
-POST /api/trust/create                       → place a trust on a placement
-POST /api/base/prioritise?id=&value=         → toggle priority
-POST /api/base/target?id=&target=            → set unit target type
-POST /api/base/disable?id=                   → disable base
-POST /api/base/remove?id=                    → remove base
-POST /api/bloc/military_expense?id=&value=   → set military budget %
-```
-
-All POST bodies and response shapes: **read the Rust source** at
-`../game-backend/src/api/` before implementing — do not guess field names.
+The placeholder endpoint list that used to live here has been confirmed
+against the live OpenAPI spec and superseded by
+[`API_INTEGRATION.md`](./API_INTEGRATION.md) — several of the old guesses were
+wrong (e.g. `POST /api/base/create` is actually `POST /api/bases`, and
+`POST /api/base/remove` has no backend endpoint at all, ever). Use real
+request/response shapes from `src/types/*.ts` (mirrored 1:1 from the Rust
+handler types) rather than guessing field names.
 
 ---
 
 ## Environment variables
 
 ```
-VITE_API_BASE_URL=http://localhost:8080
-VITE_CREDIT_EXCHANGER_URL=...             # if frontend ever calls it directly
+VITE_API_BASE_URL=   # .env.development: empty — requests go through the Vite dev
+                     #   proxy (see vite.config.ts) to avoid CORS issues
+                     # .env.production: placeholder `https://example.com`, pending
+                     #   a real deployment URL
 ```
+
+No credit-exchanger env var exists — the frontend never calls that service
+directly (see "Open questions" and `API_INTEGRATION.md`).
 
 ---
 ## Building the Backend
@@ -261,8 +295,23 @@ cargo build 2>&1 | tail -60
 
 ## Open questions (resolve before implementing)
 
-- [ ] Exact field name for combat state on unit objects (read backend source)
-- [ ] What resource types exist? (influences Trust build UI)
-- [ ] Are Placements fixed per Zone, or can there be multiple per Zone?
-- [ ] Does the frontend ever call the credit-exchanger directly, or only the main backend?
-- [ ] Authentication / session model — how does the frontend know which Bloc it is?
+- [x] Exact field name for combat state on unit objects — **there is no such
+      field.** `UnitResponse` carries nothing about combat; it's a separate
+      resource at `GET /api/combats`, now polled via `useCombats()` and
+      cross-referenced by unit ID (see "Combat visualisation" above). See
+      "Domain-model corrections" in `API_INTEGRATION.md`.
+- [x] What resource types exist? — `ResourceName` is an unconstrained string
+      server-side (no enum); `PlacementMenu.tsx` already treats it as free text.
+- [ ] Are Placements fixed per Zone, or can there be multiple per Zone? — not
+      determinable from the API schema alone (nothing caps it); still open.
+- [x] Does the frontend ever call the credit-exchanger directly, or only the
+      main backend? — only the main backend; no credit-exchanger URL is
+      configured or referenced anywhere in `src/`.
+- [x] Authentication / session model — cookie session via actix-identity
+      (`POST /api/login` sets it; every request sends `credentials: 'include'`,
+      centralised in `src/api/client.ts`). There's no single "which Bloc am I"
+      flag — access is granted per-bloc *and* per-zone independently, each
+      `read`/`write`, exposed via `GET /api/me` (wired as `useCurrentUser()` —
+      see `API_INTEGRATION.md`) and used to disable build/target UI the user
+      can't perform, plus a "Bloc" HUD panel showing the user's own
+      permissions and per-bloc info (`GET /api/blocs`).

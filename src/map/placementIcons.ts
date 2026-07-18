@@ -4,7 +4,7 @@ import type { Placement } from '../types/placement'
 import type { Unit } from '../types/unit'
 
 export type IconBloc = 'west' | 'east' | 'neutral'
-export type IconState = 'normal' | 'priority' | 'disabled'
+export type IconState = 'normal' | 'priority' | 'disabled' | 'combat'
 export type IconShape = 'empty' | 'base' | 'trust' | 'unit'
 
 export interface IconSpec {
@@ -24,6 +24,16 @@ export const ICON_PIXEL_RATIO = RASTER_SIZE / DESIGN_SIZE
 export const ICON_SIZE_FACTOR = 0.4
 // Units render as a small plain dot, smaller than placement markers.
 export const UNIT_ICON_SIZE_FACTOR = 0.22
+// How much larger a marker renders while hovered, relative to its base icon-size factor.
+const HOVER_SCALE = 1.3
+
+// MapLibre `icon-size` expression: reads the per-feature `hover` property (set on the
+// GeoJSON source via setData by the layer's mousemove/mouseleave handlers) and scales the
+// icon up while hovered. Must be a plain data-driven `get` expression, not `feature-state`
+// — `feature-state` expressions are only allowed in paint properties, and icon-size is layout.
+export function HOVER_ICON_SIZE_EXPRESSION(baseSize: number) {
+  return ['case', ['==', ['get', 'hover'], true], baseSize * HOVER_SCALE, baseSize] as const
+}
 
 // No sub-type field exists yet on Placement.occupant for which base/trust icon to use,
 // nor a bloc — confirm against ../game-backend/src/models before these can be data-driven.
@@ -80,18 +90,20 @@ function markerSvg(spec: IconSpec): string {
   const sz = DESIGN_SIZE
   const h = sz / 2
 
-  const ring =
-    state === 'priority'
-      ? `<circle cx="${h}" cy="${h}" r="${h + 2}" fill="none" stroke="${c.ring}" stroke-width="3" opacity="0.6"/>`
-      : ''
   const opacity = state === 'disabled' ? ' opacity="0.55"' : ''
 
   let body: string
   let inner: string
+  let ring = ''
 
   if (shape === 'unit') {
-    body = `<circle cx="${h}" cy="${h}" r="${h * 0.32}" fill="${c.bg}" stroke="${c.ring}" stroke-width="1.5"/>`
+    const dotRadius = h * 0.32
+    body = `<circle cx="${h}" cy="${h}" r="${dotRadius}" fill="${c.bg}" stroke="${c.ring}" stroke-width="1.5"/>`
     inner = ''
+    // Combat ring is sized relative to the small unit dot, not the placement-marker ring below.
+    if (state === 'combat') {
+      ring = `<circle cx="${h}" cy="${h}" r="${(dotRadius + 4).toFixed(1)}" fill="none" stroke="#DC2626" stroke-width="2"/>`
+    }
   } else if (shape === 'empty') {
     body = `<circle cx="${h}" cy="${h}" r="${h - 3}" fill="none" stroke="${c.bg}" stroke-width="2" stroke-dasharray="5 3"/>`
     if (key === 'crosshair') {
@@ -104,6 +116,9 @@ function markerSvg(spec: IconSpec): string {
   } else if (shape === 'base') {
     body = `<polygon points="${hexPoints(h, h, h - 2)}" fill="${c.bg}" stroke="${c.ring}" stroke-width="1.5"/>`
     inner = iconGlyph(key, sz, '#fff')
+    if (state === 'priority') {
+      ring = `<circle cx="${h}" cy="${h}" r="${h + 2}" fill="none" stroke="${c.ring}" stroke-width="3" opacity="0.6"/>`
+    }
   } else {
     body = `<polygon points="${h},3 ${sz - 3},${h} ${h},${sz - 3} 3,${h}" fill="${c.bg}" stroke="${c.ring}" stroke-width="1.5"/>`
     inner = iconGlyph(key, sz, '#fff')
@@ -147,7 +162,9 @@ export function specForPlacement(placement: Placement): IconSpec {
     return { shape: 'empty', key: DEFAULT_EMPTY_KEY, bloc: 'neutral', state: 'normal' }
   }
   if (placement.occupant.type === 'base') {
-    return { shape: 'base', key: DEFAULT_BASE_KEY, bloc: 'neutral', state: 'normal' }
+    const { enabled, prioritized } = placement.occupant
+    const state: IconState = !enabled ? 'disabled' : prioritized ? 'priority' : 'normal'
+    return { shape: 'base', key: DEFAULT_BASE_KEY, bloc: 'neutral', state }
   }
   return { shape: 'trust', key: DEFAULT_TRUST_KEY, bloc: 'neutral', state: 'normal' }
 }
@@ -159,6 +176,6 @@ function iconBlocForUnit(bloc: string | null): IconBloc {
   return 'neutral'
 }
 
-export function specForUnit(unit: Unit): IconSpec {
-  return { shape: 'unit', key: DEFAULT_UNIT_KEY, bloc: iconBlocForUnit(unit.bloc), state: 'normal' }
+export function specForUnit(unit: Unit, inCombat: boolean): IconSpec {
+  return { shape: 'unit', key: DEFAULT_UNIT_KEY, bloc: iconBlocForUnit(unit.bloc), state: inCombat ? 'combat' : 'normal' }
 }
