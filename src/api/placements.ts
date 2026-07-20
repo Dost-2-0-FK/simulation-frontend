@@ -79,6 +79,7 @@ export function buildErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) return 'You are not logged in. Please log in again.'
     if (error.status === 403) return "You don't have write access here."
+    if (error.status === 402) return 'Insufficient funds to build this.'
   }
   return 'Failed to build — try again.'
 }

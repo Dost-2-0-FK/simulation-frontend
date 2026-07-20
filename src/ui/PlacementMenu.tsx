@@ -352,7 +352,7 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
                 value={selectedTargetKey}
                 onChange={(e) => setSelectedTargetKey(e.target.value)}
                 disabled={!canManageBase}
-                className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm disabled:opacity-50"
+                className="w-0 min-w-0 flex-1 truncate rounded border border-gray-300 px-2 py-1 text-sm disabled:opacity-50"
               >
                 <option value="none">Nearest enemy unit</option>
                 {targetOptions.map((opt) => (
