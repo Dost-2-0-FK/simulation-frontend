@@ -63,6 +63,46 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: 'green' | 
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${toneClasses}`}>{children}</span>
 }
 
+function ToggleSwitch({
+  checked,
+  disabled,
+  pending,
+  onClick,
+  label,
+  title,
+  activeTone,
+}: {
+  checked: boolean
+  disabled?: boolean
+  pending?: boolean
+  onClick: () => void
+  label: string
+  title?: string
+  activeTone: 'green' | 'amber'
+}) {
+  const trackActive = { green: 'bg-green-600', amber: 'bg-amber-500' }[activeTone]
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled || pending}
+      title={title}
+      onClick={onClick}
+      className="flex items-center gap-1.5 disabled:opacity-50"
+    >
+      <span
+        className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${checked ? trackActive : 'bg-gray-300'}`}
+      >
+        <span
+          className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-3.5' : 'translate-x-0.5'}`}
+        />
+      </span>
+      <span className="text-xs font-medium text-gray-700">{label}</span>
+    </button>
+  )
+}
+
 export default function PlacementMenu({ map, placement, onClose }: Props) {
   const [pos, setPos] = useState(() => map.project([placement.lng, placement.lat]))
   const buildOnPlacement = useBuildOnPlacement()
@@ -77,7 +117,11 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
 
   // Shares the ['placements'] query cache already populated by App.tsx — no extra fetch.
   const { data: allPlacements = [] } = usePlacements()
-  const { occupant } = placement
+  // `placement` is a snapshot captured by App.tsx when the menu was opened, so it goes stale
+  // as soon as a patch (enabled/prioritized/target) is applied and the query refetches. Look
+  // the occupant back up from the live query data so the menu reflects changes immediately,
+  // falling back to the snapshot only if the placement has since disappeared from the list.
+  const occupant = allPlacements.find((p) => p.id === placement.id)?.occupant ?? placement.occupant
 
   // Gate build/patch actions on permissions from GET /api/me so the UI can disable what the
   // user can't do, rather than letting them submit and only find out from a 403 afterwards.
@@ -316,26 +360,26 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
 
       {occupant?.type === 'base' && (
         <div className="space-y-2">
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap items-center gap-3">
             <Badge tone="gray">Bloc: {occupant.bloc}</Badge>
-            <button
-              type="button"
-              disabled={!canManageBase || toggleBaseEnabled.isPending}
+            <ToggleSwitch
+              checked={occupant.enabled}
+              disabled={!canManageBase}
+              pending={toggleBaseEnabled.isPending}
               title={canManageBase ? undefined : "You don't have write access to this bloc."}
               onClick={handleToggleEnabled}
-              className={`rounded-full px-2 py-0.5 text-xs font-medium disabled:opacity-50 ${occupant.enabled ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-            >
-              {occupant.enabled ? 'Enabled' : 'Disabled'}
-            </button>
-            <button
-              type="button"
-              disabled={!canManageBase || toggleBasePrioritized.isPending}
+              label={occupant.enabled ? 'Enabled' : 'Disabled'}
+              activeTone="green"
+            />
+            <ToggleSwitch
+              checked={occupant.prioritized}
+              disabled={!canManageBase}
+              pending={toggleBasePrioritized.isPending}
               title={canManageBase ? undefined : "You don't have write access to this bloc."}
               onClick={handleTogglePrioritized}
-              className={`rounded-full px-2 py-0.5 text-xs font-medium disabled:opacity-50 ${occupant.prioritized ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-            >
-              {occupant.prioritized ? 'Prioritised' : 'Not prioritised'}
-            </button>
+              label={occupant.prioritized ? 'Prioritised' : 'Not prioritised'}
+              activeTone="amber"
+            />
           </div>
           {toggleBaseEnabled.isError && (
             <div className="text-xs text-red-600">{patchErrorMessage(toggleBaseEnabled.error)}</div>
