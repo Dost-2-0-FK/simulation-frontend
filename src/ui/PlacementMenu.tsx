@@ -6,6 +6,7 @@ import type { Financing } from '../types/financing'
 import { useBuildOnPlacement, usePlacements, usePatchBase, buildErrorMessage, patchErrorMessage } from '../api/placements'
 import { useCurrentUser, canWriteBloc, canWriteZone } from '../api/auth'
 import { useZones } from '../api/zones'
+import { useResources } from '../api/resources'
 
 interface Props {
   map: maplibregl.Map
@@ -82,6 +83,7 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
   // user can't do, rather than letting them submit and only find out from a 403 afterwards.
   const { data: currentUser } = useCurrentUser()
   const { data: zones = [] } = useZones()
+  const { data: resources = [] } = useResources()
   const placementBloc = zones.find((z) => z.name === placement.zone)?.bloc ?? null
   const canBuildBase = placementBloc !== null && canWriteBloc(currentUser, placementBloc)
   const canBuildTrust = canWriteZone(currentUser, placement.zone)
@@ -211,13 +213,20 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
           {buildMode === 'trust' && (
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-500">Resource</label>
-              <input
-                type="text"
+              <select
                 value={resource}
                 onChange={(e) => setResource(e.target.value)}
-                placeholder="e.g. oil"
                 className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
-              />
+              >
+                <option value="" disabled>
+                  Select a resource…
+                </option>
+                {resources.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
           <div className="text-xs font-medium text-gray-500">Financiers (optional)</div>

@@ -179,6 +179,14 @@ Worth flagging to backend if an aggregate is wanted instead.
 
 ---
 
+## Resources (`../simulation/src/handlers/resources.rs`)
+
+| Endpoint | Status | Notes |
+|---|---|---|
+| `GET /api/resources` | ✅ | `src/api/resources.ts → useResources()`. Returns the server's configured list of resource names as a plain `string[]` (`ResourceName` is a newtype-wrapped, lowercased `String` that serializes transparently — no wrapper object). Consumed by `PlacementMenu.tsx` to populate the "Resource" `<select>` shown when building a Trust, replacing the old free-text input now that the valid set is known. |
+
+---
+
 ## Domain-model corrections (confirmed against the live schema)
 
 Things `CLAUDE.md`'s domain model assumed that turned out to be wrong once

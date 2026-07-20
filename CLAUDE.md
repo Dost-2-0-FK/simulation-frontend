@@ -300,8 +300,10 @@ cargo build 2>&1 | tail -60
       resource at `GET /api/combats`, now polled via `useCombats()` and
       cross-referenced by unit ID (see "Combat visualisation" above). See
       "Domain-model corrections" in `API_INTEGRATION.md`.
-- [x] What resource types exist? — `ResourceName` is an unconstrained string
-      server-side (no enum); `PlacementMenu.tsx` already treats it as free text.
+- [x] What resource types exist? — `ResourceName` is a lowercased string
+      newtype server-side (no enum), but the valid set is now discoverable via
+      `GET /api/resources`; `PlacementMenu.tsx` uses it to populate a dropdown
+      instead of free text. See `API_INTEGRATION.md`'s Resources section.
 - [ ] Are Placements fixed per Zone, or can there be multiple per Zone? — not
       determinable from the API schema alone (nothing caps it); still open.
 - [x] Does the frontend ever call the credit-exchanger directly, or only the
