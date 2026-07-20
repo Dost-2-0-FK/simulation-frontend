@@ -90,15 +90,34 @@ export default function MapView({ onMapReady }: Props) {
 
       // Fit the full world map image bounds to the container with no padding
       map.fitBounds([[-180, MAP_BOTTOM_LAT], [180, MAP_TOP_LAT]], { padding: 0, animate: false })
-      map.setMaxBounds([[-179.9999, MAP_BOTTOM_LAT], [179.9999, MAP_TOP_LAT]]) // stops cursor/pan from ever leaving the image
+
+      // Constrain latitude only — longitude is intentionally left unbounded so
+      // panning past the date line keeps going, with MapLibre's renderWorldCopies
+      // (default on) drawing the wrapped-around copy of the map/image/zone layers.
+      map.setTransformConstrain((lngLat, zoom) => ({
+        center: new maplibregl.LngLat(lngLat.lng, Math.min(Math.max(lngLat.lat, MAP_BOTTOM_LAT), MAP_TOP_LAT)),
+        zoom,
+      }))
 
       onMapReady?.(map)
     })
 
     map.on('mousemove', (e) => {
-      setCoords({ lng: e.lngLat.lng, lat: e.lngLat.lat })
+      const wrapped = e.lngLat.wrap()
+      setCoords({ lng: wrapped.lng, lat: wrapped.lat })
     })
     map.on('mouseleave', () => setCoords(null))
+
+    // Longitude itself isn't wrapped by MapLibre as you pan (only the rendered
+    // copies are) — left unchecked it grows without bound the further you scroll.
+    // Snap it back into [-180, 180) once a pan gesture ends, using MapLibre's
+    // own LngLat.wrap() rather than reimplementing the wraparound math.
+    map.on('moveend', () => {
+      const center = map.getCenter()
+      if (center.lng < -180 || center.lng >= 180) {
+        map.jumpTo({ center: center.wrap() })
+      }
+    })
 
     mapRef.current = map
 

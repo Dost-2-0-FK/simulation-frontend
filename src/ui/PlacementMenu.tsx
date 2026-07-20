@@ -7,6 +7,25 @@ import { useBuildOnPlacement, usePlacements, usePatchBase, buildErrorMessage, pa
 import { useCurrentUser, canWriteBloc, canWriteZone } from '../api/auth'
 import { useZones } from '../api/zones'
 import { useResources } from '../api/resources'
+import QrScanner from './qr/QrScanner'
+
+// Parses a scanned financier QR's decoded content: either a plain financier ID
+// string, or JSON of the shape {"financierId": "..."}. Anything else (including
+// validly-parsed JSON of the wrong shape) is rejected rather than coerced.
+function parseFinancierQr(content: string): string | null {
+  const trimmed = content.trim()
+  if (!trimmed) return null
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (typeof parsed === 'object' && parsed !== null && typeof (parsed as Record<string, unknown>).financierId === 'string') {
+      const id = ((parsed as Record<string, unknown>).financierId as string).trim()
+      return id || null
+    }
+    return null
+  } catch {
+    return trimmed
+  }
+}
 
 interface Props {
   map: maplibregl.Map
@@ -196,6 +215,24 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
   const updateFinancierRow = (index: number, patch: Partial<{ financierId: string; sharePercent: string }>) =>
     setFinancierRows((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
 
+  // Which financier row (if any) currently has its "scan QR" popover open, and
+  // any error from a scan that didn't decode to a usable financier ID.
+  const [scanningRow, setScanningRow] = useState<number | null>(null)
+  const [scanError, setScanError] = useState<string | null>(null)
+  const openScanPopover = (index: number) => {
+    setScanError(null)
+    setScanningRow(index)
+  }
+  const handleFinancierScan = (index: number, content: string) => {
+    const financierId = parseFinancierQr(content)
+    if (!financierId) {
+      setScanError('QR code did not contain a financier ID.')
+      return
+    }
+    updateFinancierRow(index, { financierId })
+    setScanningRow(null)
+  }
+
   const handleConfirmBuild = () => {
     if (!canSubmitBuild || buildMode === null) return
     const input =
@@ -291,13 +328,27 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
                     <label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wide text-gray-400">
                       User ID
                     </label>
-                    <input
-                      type="text"
-                      value={row.financierId}
-                      onChange={(e) => updateFinancierRow(index, { financierId: e.target.value })}
-                      placeholder="e.g. player-42"
-                      className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
-                    />
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={row.financierId}
+                        onChange={(e) => updateFinancierRow(index, { financierId: e.target.value })}
+                        placeholder="e.g. player-42"
+                        className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => openScanPopover(index)}
+                        aria-label="Scan financier QR code"
+                        title="Scan financier QR code"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-gray-300 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                      >
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 7V5a2 2 0 0 1 2-2h2M3 17v2a2 2 0 0 0 2 2h2M21 7V5a2 2 0 0 0-2-2h-2M21 17v2a2 2 0 0 1-2 2h-2" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wide text-gray-400">
@@ -322,6 +373,28 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
                     {rowState.shareValid
                       ? 'Provide both a financier user ID and a share, or leave both empty.'
                       : 'Share must be between 0% and 100%.'}
+                  </div>
+                )}
+                {scanningRow === index && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+                    <div className="w-72 rounded-lg border border-gray-300 bg-white p-3 shadow-lg">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-sm font-semibold text-gray-800">Scan financier QR</span>
+                        <button
+                          type="button"
+                          onClick={() => setScanningRow(null)}
+                          aria-label="Close"
+                          className="flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-600"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <QrScanner
+                        onScan={(content) => handleFinancierScan(index, content)}
+                        onError={setScanError}
+                      />
+                      {scanError && <div className="mt-2 text-xs text-red-600">{scanError}</div>}
+                    </div>
                   </div>
                 )}
               </div>
