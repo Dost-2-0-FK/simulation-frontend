@@ -95,7 +95,7 @@ either side.
 
 | Endpoint | Status | Notes |
 |---|---|---|
-| `GET /api/trusts` | ✅ | `src/api/trusts.ts → getTrusts()`. Same dual use as `getBases()` (direct + placement-occupancy joining). |
+| `GET /api/trusts` | ✅ | `src/api/trusts.ts → getTrusts()`. Same dual use as `getBases()` (direct + placement-occupancy joining). `TrustResponse.resource` (the produced resource *type*, e.g. `"oil"`) is always present regardless of zone read access — only `.income` and `.producing` (the amounts) are redacted without it. Shown unconditionally as a badge in `PlacementMenu.tsx`'s trust panel. |
 | `POST /api/trusts` | ✅ | `createTrust()`, via `useBuildOnPlacement()` → `PlacementMenu.tsx`'s "Build Trust" flow. Body: `placementId` (**from a prior GET**), `resource` (**user-supplied**, free-text input — confirmed `ResourceName` is an unconstrained `string` server-side, not an enum, so there's no fixed resource list to validate against or offer as a picker), `payment: Financing[]` (**user-supplied**, optional, same shape/semantics as bases). |
 | `POST /api/trusts/publish-production` | 🚫 | Same story as `bases/publish-production` — ops-only, driven by `run-production-cycle.sh`. Do not wire into the UI. |
 | `GET /api/trusts/{id}` | ❌ | `id` **from a prior GET** (`Trust.id`). Not currently needed; covered by the list fetch. |

@@ -375,6 +375,9 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
 
       {occupant?.type === 'trust' && (
         <div className="space-y-2">
+          <div className="flex flex-wrap gap-1">
+            <Badge tone="green">Produces: {occupant.resource}</Badge>
+          </div>
           <div>
             <div className="mb-1 text-xs font-medium text-gray-500">Financing</div>
             <FinancingList payment={occupant.payment} fallbackLabel="Fully funded by zone" />

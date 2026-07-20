@@ -7,4 +7,5 @@ export interface Trust {
   zone: string
   payment: Financing[]
   position: { x: number; y: number }
+  resource: string
 }
