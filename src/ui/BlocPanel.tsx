@@ -10,45 +10,34 @@ function AccessBadge({ level }: { level: AccessLevel }) {
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${toneClasses}`}>{level}</span>
 }
 
-// Editable military expense / combat chance form, shown only to users with write access to
-// this bloc (gated by the caller). Backs PATCH /api/blocs/{id}.
+// Military expense form, shown only to users with write access to this bloc (gated by the
+// caller). Backs PATCH /api/blocs/{id}. Combat chance is intentionally not settable here —
+// it's shown read-only alongside the input.
 function BlocSettingsForm({ bloc }: { bloc: Bloc }) {
   const updateBloc = useUpdateBloc()
   const savedExpensePercent = String(Math.round(bloc.militaryExpense * 100))
-  const savedChance = String(bloc.chance)
 
   const [expensePercent, setExpensePercent] = useState(savedExpensePercent)
-  const [chance, setChance] = useState(savedChance)
 
-  // Reset the fields whenever the underlying bloc data changes (e.g. after our own mutation
+  // Reset the field whenever the underlying bloc data changes (e.g. after our own mutation
   // succeeds, or another player's edit is picked up by the next poll). Adjusted during render
   // rather than in an effect, per https://react.dev/learn/you-might-not-need-an-effect — same
   // pattern as the target picker in PlacementMenu.tsx.
   const [syncedExpensePercent, setSyncedExpensePercent] = useState(savedExpensePercent)
-  const [syncedChance, setSyncedChance] = useState(savedChance)
   if (savedExpensePercent !== syncedExpensePercent) {
     setSyncedExpensePercent(savedExpensePercent)
     setExpensePercent(savedExpensePercent)
   }
-  if (savedChance !== syncedChance) {
-    setSyncedChance(savedChance)
-    setChance(savedChance)
-  }
 
   const parsedExpense = expensePercent.trim() === '' ? null : Number(expensePercent) / 100
   const expenseValid = parsedExpense === null || (Number.isFinite(parsedExpense) && parsedExpense >= 0 && parsedExpense <= 1)
-  const parsedChance = chance.trim() === '' ? null : Number(chance)
-  const chanceValid = parsedChance === null || (Number.isInteger(parsedChance) && parsedChance >= 0)
 
   const expenseDirty = expensePercent !== savedExpensePercent
-  const chanceDirty = chance !== savedChance
-  const canSave = expenseValid && chanceValid && (expenseDirty || chanceDirty)
+  const canSave = expenseValid && expenseDirty
 
   const handleSave = () => {
-    if (!canSave) return
-    const patch: BlocPatch = {}
-    if (expenseDirty && parsedExpense !== null) patch.militaryExpense = parsedExpense
-    if (chanceDirty && parsedChance !== null) patch.chance = parsedChance
+    if (!canSave || parsedExpense === null) return
+    const patch: BlocPatch = { militaryExpense: parsedExpense }
     updateBloc.mutate({ name: bloc.name, patch })
   }
 
@@ -69,21 +58,10 @@ function BlocSettingsForm({ bloc }: { bloc: Bloc }) {
         </div>
       </div>
       <div className="flex items-center justify-between gap-2">
-        <label className="text-xs text-gray-600">Combat chance</label>
-        <input
-          type="number"
-          min={0}
-          step={1}
-          value={chance}
-          onChange={(e) => setChance(e.target.value)}
-          className="w-16 rounded border border-gray-300 px-2 py-0.5 text-right text-xs"
-        />
+        <span className="text-xs text-gray-600">Combat chance</span>
+        <span className="text-xs font-medium text-gray-800">{bloc.chance}</span>
       </div>
-      {(!expenseValid || !chanceValid) && (
-        <div className="text-xs text-red-600">
-          {!expenseValid ? 'Military expense must be between 0% and 100%.' : 'Combat chance must be a non-negative whole number.'}
-        </div>
-      )}
+      {!expenseValid && <div className="text-xs text-red-600">Military expense must be between 0% and 100%.</div>}
       <button
         type="button"
         disabled={!canSave || updateBloc.isPending}
