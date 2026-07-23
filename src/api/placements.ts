@@ -93,6 +93,10 @@ export function usePatchBase() {
     mutationFn: ({ baseId, patch }: { baseId: number; patch: BasePatch }) => patchBase(baseId, patch),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['placements'] })
+      // A target change takes effect for units immediately server-side (each unit reads its
+      // base's live target every movement tick), so refetch units now too rather than waiting
+      // for the next 10s poll to show it.
+      queryClient.invalidateQueries({ queryKey: ['units'] })
     },
     onError: (error) => {
       if (error instanceof ApiError && error.status === 401) {

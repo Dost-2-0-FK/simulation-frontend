@@ -157,8 +157,12 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
     return allPlacements
       .map((p) => p.occupant)
       .filter((o): o is NonNullable<Placement['occupant']> => o !== null && !(o.type === 'base' && o.id === occupant.id))
+      // A base can only ever be targeted at an enemy structure — the backend rejects a
+      // same-bloc target outright (units arriving at a friendly "target" would otherwise
+      // never engage in normal combat, making the change look like it did nothing).
+      .filter((o) => (o.type === 'base' ? o.bloc : zones.find((z) => z.name === o.zone)?.bloc) !== occupant.bloc)
       .map((o) => ({ key: `${o.type}:${o.id}`, label: o.type === 'base' ? `Base #${o.id} (${o.bloc})` : `Trust #${o.id} (${o.zone})` }))
-  }, [allPlacements, occupant])
+  }, [allPlacements, occupant, zones])
 
   // Reset the picker to the base's current target whenever that target changes underneath us
   // (e.g. after our own mutation succeeds, or another player's edit is picked up by polling).
@@ -262,7 +266,7 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
       <div className="mb-2 pr-4">
         <div className="text-sm font-semibold">
           {occupant?.type === 'base' ? 'Base' : occupant?.type === 'trust' ? 'Trust' : 'Empty Placement'}{' '}
-          <span className="font-normal text-gray-400">#{placement.id}</span>
+          <span className="font-normal text-gray-400">#{occupant ? occupant.id : placement.id}</span>
         </div>
         <div className="text-xs text-gray-500">Zone: {placement.zone}</div>
       </div>

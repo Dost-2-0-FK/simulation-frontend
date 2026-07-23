@@ -28,6 +28,15 @@ export default function MapView({ onMapReady }: Props) {
       minZoom: 1.5,
     })
 
+    // disable map rotation using right click + drag
+    map.dragRotate.disable();
+
+    // disable map rotation using keyboard
+    map.keyboard.disable();
+
+    // disable map rotation using touch rotation gesture
+    map.touchZoomRotate.disableRotation();
+
     map.on('style.load', () => 
     {
       console.log("Before: ", map.getProjection());
@@ -94,9 +103,12 @@ export default function MapView({ onMapReady }: Props) {
       // Constrain latitude only — longitude is intentionally left unbounded so
       // panning past the date line keeps going, with MapLibre's renderWorldCopies
       // (default on) drawing the wrapped-around copy of the map/image/zone layers.
+      // setTransformConstrain() fully replaces MapLibre's default constrain
+      // function, which is also what normally enforces minZoom/maxZoom — so
+      // zoom has to be re-clamped here or it's left unbounded too.
       map.setTransformConstrain((lngLat, zoom) => ({
         center: new maplibregl.LngLat(lngLat.lng, Math.min(Math.max(lngLat.lat, MAP_BOTTOM_LAT), MAP_TOP_LAT)),
-        zoom,
+        zoom: Math.min(Math.max(zoom, map.getMinZoom()), map.getMaxZoom()),
       }))
 
       onMapReady?.(map)
