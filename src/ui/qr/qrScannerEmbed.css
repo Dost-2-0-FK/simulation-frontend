@@ -1,0 +1,12 @@
+/* The vendored widget (public/qr-scanner/scanner.css) sizes itself with viewport
+   units (`min(92vw, 29rem)` etc.), which ignores the width of whatever card/popover
+   it's embedded in and can overflow it. Scope an override to the wrapper class
+   QrScanner.tsx applies, constraining it to the embedding container instead. */
+.qr-scanner-embed .qr-scanner {
+  width: 100%;
+  margin-top: 0;
+}
+
+.qr-scanner-embed .qr-scanner__aperture {
+  width: min(100%, 12rem);
+}

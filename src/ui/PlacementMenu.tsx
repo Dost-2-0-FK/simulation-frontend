@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type maplibregl from 'maplibre-gl'
 import type { Placement } from '../types/placement'
 import type { BaseTarget } from '../types/base'
@@ -375,28 +376,35 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
                       : 'Share must be between 0% and 100%.'}
                   </div>
                 )}
-                {scanningRow === index && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
-                    <div className="w-72 rounded-lg border border-gray-300 bg-white p-3 shadow-lg">
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className="text-sm font-semibold text-gray-800">Scan financier QR</span>
-                        <button
-                          type="button"
-                          onClick={() => setScanningRow(null)}
-                          aria-label="Close"
-                          className="flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-600"
-                        >
-                          ×
-                        </button>
+                {scanningRow === index &&
+                  createPortal(
+                    // Portalled to <body>: this panel's root has a translate transform
+                    // (positioning it next to the clicked placement), and a `transform`
+                    // on an ancestor turns `position: fixed` descendants into ones
+                    // contained by *that* box instead of the viewport. Rendering outside
+                    // it is what makes `fixed inset-0` actually center on the screen.
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+                      <div className="w-72 max-w-[92vw] rounded-lg border border-gray-300 bg-white p-3 shadow-lg">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-sm font-semibold text-gray-800">Scan financier QR</span>
+                          <button
+                            type="button"
+                            onClick={() => setScanningRow(null)}
+                            aria-label="Close"
+                            className="flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-600"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <QrScanner
+                          onScan={(content) => handleFinancierScan(index, content)}
+                          onError={setScanError}
+                        />
+                        {scanError && <div className="mt-2 text-xs text-red-600">{scanError}</div>}
                       </div>
-                      <QrScanner
-                        onScan={(content) => handleFinancierScan(index, content)}
-                        onError={setScanError}
-                      />
-                      {scanError && <div className="mt-2 text-xs text-red-600">{scanError}</div>}
-                    </div>
-                  </div>
-                )}
+                    </div>,
+                    document.body,
+                  )}
               </div>
             )
           })}

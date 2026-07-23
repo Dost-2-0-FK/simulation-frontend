@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadScannerScripts } from './loadScannerScripts'
+import './qrScannerEmbed.css'
 // window.QRScanner / window.jsQR are typed ambiently by ./qrScannerGlobal.d.ts
 // (picked up automatically by tsconfig's include glob, no import needed here).
 
@@ -65,7 +66,7 @@ export default function QrScanner({ onScan, onError, className }: QrScannerProps
   }, [ready])
 
   return (
-    <div className={className}>
+    <div className={`qr-scanner-embed${className ? ` ${className}` : ''}`}>
       {loadError && <div className="text-xs text-red-600">{loadError}</div>}
       <section ref={rootRef} className="qr-scanner" data-qr-scanner>
         <video data-scanner-video playsInline muted aria-hidden="true" />
