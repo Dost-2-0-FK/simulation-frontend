@@ -3,6 +3,7 @@ import type maplibregl from 'maplibre-gl'
 import MapView from './map/MapView'
 import PlacementsLayer from './map/PlacementsLayer'
 import UnitsLayer from './map/UnitsLayer'
+import InhibitionRadiusLayer from './map/InhibitionRadiusLayer'
 import PixiOverlay from './pixi/PixiOverlay'
 import PlacementMenu from './ui/PlacementMenu'
 import UnitMenu from './ui/UnitMenu'
@@ -13,6 +14,7 @@ import { MAP_WINDOW } from './config/mapLayout'
 import { usePlacements } from './api/placements'
 import { useUnits } from './api/units'
 import { useCombats } from './api/combats'
+import { useZones } from './api/zones'
 import { useAuthStore } from './store'
 import type { Placement } from './types/placement'
 import type { Unit } from './types/unit'
@@ -21,10 +23,34 @@ export default function App() {
   const [map, setMap] = useState<maplibregl.Map | null>(null)
   const [selectedPlacement, setSelectedPlacement] = useState<Placement | null>(null)
   const [hoveredUnit, setHoveredUnit] = useState<Unit | null>(null)
+  const [highlightedInhibitionPlacementId, setHighlightedInhibitionPlacementId] = useState<string | null>(null)
+  const [highlightedTargetPlacementId, setHighlightedTargetPlacementId] = useState<string | null>(null)
   const { data: placements = [] } = usePlacements()
   const { data: units = [] } = useUnits()
   const { data: combats = [] } = useCombats()
+  const { data: zones = [] } = useZones()
   const userId = useAuthStore((s) => s.userId)
+
+  // Which trusts currently have an enemy unit inside their inhibition radius — drawn on the
+  // map in a signal color regardless of whether their menu is open, per the "inhibition
+  // radius" mechanic (nearby enemy units lower a trust's resource production).
+  const threatenedPlacementIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const placement of placements) {
+      if (placement.occupant?.type !== 'trust') continue
+      const trustBloc = zones.find((z) => z.name === placement.zone)?.bloc
+      if (!trustBloc) continue
+      const inhibitionRadius = placement.occupant.inhibitionRadius
+      const hasEnemyInside = units.some(
+        (unit) =>
+          unit.bloc !== null &&
+          unit.bloc !== trustBloc &&
+          Math.hypot(unit.lng - placement.lng, unit.lat - placement.lat) <= inhibitionRadius,
+      )
+      if (hasEnemyInside) ids.add(placement.id)
+    }
+    return ids
+  }, [placements, units, zones])
 
   // Cross-reference ongoing combats' participant unit IDs against currently-rendered units,
   // per CLAUDE.md's "Combat visualisation" — combat state never arrives as a field on unit
@@ -73,11 +99,33 @@ export default function App() {
         }}
       >
         <MapView onMapReady={handleMapReady} />
-        <PlacementsLayer map={map} placements={placements} onPlacementClick={setSelectedPlacement} />
+        <PlacementsLayer
+          map={map}
+          placements={placements}
+          onPlacementClick={setSelectedPlacement}
+          highlightedId={highlightedTargetPlacementId}
+        />
         <UnitsLayer map={map} units={units} combatUnitIds={combatUnitIds} onUnitHover={setHoveredUnit} />
+        <InhibitionRadiusLayer
+          map={map}
+          placements={placements}
+          highlightedPlacementId={highlightedInhibitionPlacementId}
+          threatenedPlacementIds={threatenedPlacementIds}
+        />
         <PixiOverlay map={map} />
         {map && selectedPlacement && (
-          <PlacementMenu map={map} placement={selectedPlacement} onClose={() => setSelectedPlacement(null)} />
+          <PlacementMenu
+            key={selectedPlacement.id}
+            map={map}
+            placement={selectedPlacement}
+            onClose={() => {
+              setSelectedPlacement(null)
+              setHighlightedInhibitionPlacementId(null)
+              setHighlightedTargetPlacementId(null)
+            }}
+            onInhibitionRadiusVisibilityChange={setHighlightedInhibitionPlacementId}
+            onTargetOptionHighlight={setHighlightedTargetPlacementId}
+          />
         )}
         {map && hoveredUnit && <UnitMenu map={map} unit={hoveredUnit} inCombat={combatUnitIds.has(hoveredUnit.id)} />}
       </div>

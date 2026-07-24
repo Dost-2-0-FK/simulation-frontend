@@ -16,6 +16,10 @@ interface Props {
   map: maplibregl.Map | null
   placements: Placement[]
   onPlacementClick?: (placement: Placement) => void
+  // Placement id to highlight (enlarge) regardless of mouse hover — e.g. a target
+  // dropdown option currently hovered in PlacementMenu, so the marker it refers to
+  // is identifiable on the map without the user having to move their mouse there.
+  highlightedId?: string | null
 }
 
 const SOURCE_ID = 'placements'
@@ -24,18 +28,19 @@ const LAYER_ID = 'placements-icons'
 function toGeoJSON(
   placements: Placement[],
   hoveredId: string | null,
+  highlightedId: string | null,
 ): FeatureCollection<Point, { id: string; icon: string; hover: boolean }> {
   return {
     type: 'FeatureCollection',
     features: placements.map((p) => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
-      properties: { id: p.id, icon: registerIconSpec(specForPlacement(p)), hover: p.id === hoveredId },
+      properties: { id: p.id, icon: registerIconSpec(specForPlacement(p)), hover: p.id === hoveredId || p.id === highlightedId },
     })),
   }
 }
 
-export default function PlacementsLayer({ map, placements, onPlacementClick }: Props) {
+export default function PlacementsLayer({ map, placements, onPlacementClick, highlightedId = null }: Props) {
   // Keep the click handler's view of placements current without re-registering
   // the listener on every render.
   const placementsRef = useRef(placements)
@@ -46,6 +51,7 @@ export default function PlacementsLayer({ map, placements, onPlacementClick }: P
   // Tracks which placement is currently hovered so the source's 'hover' property (read by
   // the icon-size expression to enlarge the marker) is only pushed when it actually changes.
   const hoveredIdRef = useRef<string | null>(null)
+  const highlightedIdRef = useRef<string | null>(highlightedId)
 
   // Register map listeners once per map instance. The source + layer are
   // re-added on every 'styledata' event so they survive MapLibre style resets
@@ -73,14 +79,14 @@ export default function PlacementsLayer({ map, placements, onPlacementClick }: P
       if (id === hoveredIdRef.current) return
       hoveredIdRef.current = id ?? null
       const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined
-      source?.setData(toGeoJSON(placementsRef.current, hoveredIdRef.current))
+      source?.setData(toGeoJSON(placementsRef.current, hoveredIdRef.current, highlightedIdRef.current))
     }
     const handleMouseLeave = () => {
       map.getCanvas().style.cursor = ''
       if (hoveredIdRef.current === null) return
       hoveredIdRef.current = null
       const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined
-      source?.setData(toGeoJSON(placementsRef.current, null))
+      source?.setData(toGeoJSON(placementsRef.current, null, highlightedIdRef.current))
     }
 
     // Called on every 'styledata' event (fired after any style update) and
@@ -92,7 +98,7 @@ export default function PlacementsLayer({ map, placements, onPlacementClick }: P
 
       map.addSource(SOURCE_ID, {
         type: 'geojson',
-        data: toGeoJSON(placementsRef.current, hoveredIdRef.current),
+        data: toGeoJSON(placementsRef.current, hoveredIdRef.current, highlightedIdRef.current),
       })
 
       map.addLayer({
@@ -136,8 +142,16 @@ export default function PlacementsLayer({ map, placements, onPlacementClick }: P
   useEffect(() => {
     if (!map) return
     const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined
-    source?.setData(toGeoJSON(placements, hoveredIdRef.current))
+    source?.setData(toGeoJSON(placements, hoveredIdRef.current, highlightedIdRef.current))
   }, [map, placements])
+
+  // Push data updates into the existing source whenever the externally-driven highlight changes.
+  useEffect(() => {
+    highlightedIdRef.current = highlightedId
+    if (!map) return
+    const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined
+    source?.setData(toGeoJSON(placementsRef.current, hoveredIdRef.current, highlightedIdRef.current))
+  }, [map, highlightedId])
 
   return null
 }

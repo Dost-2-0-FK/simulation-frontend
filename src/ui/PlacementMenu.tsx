@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type maplibregl from 'maplibre-gl'
 import type { Placement } from '../types/placement'
@@ -8,6 +8,8 @@ import { useBuildOnPlacement, usePlacements, usePatchBase, buildErrorMessage, pa
 import { useCurrentUser, canWriteBloc, canWriteZone } from '../api/auth'
 import { useZones } from '../api/zones'
 import { useResources } from '../api/resources'
+import { flyToFrame } from '../map/flyToFrame'
+import Dropdown from './Dropdown'
 import QrScanner from './qr/QrScanner'
 
 // Parses a scanned financier QR's decoded content: either a plain financier ID
@@ -32,6 +34,14 @@ interface Props {
   map: maplibregl.Map
   placement: Placement
   onClose: () => void
+  // Called with the trust's placement id whenever its "Inhibition Radius" row is
+  // hovered/pinned (so the map can draw the actual radius around it), or `null`
+  // once it's no longer shown.
+  onInhibitionRadiusVisibilityChange?: (placementId: string | null) => void
+  // Called with a placement id whenever that option is highlighted (hovered/arrow-keyed)
+  // in the "Target" dropdown, so the map can highlight the matching marker — or `null`
+  // once nothing in the dropdown is highlighted anymore.
+  onTargetOptionHighlight?: (placementId: string | null) => void
 }
 
 function targetLabel(target: BaseTarget): string {
@@ -71,6 +81,21 @@ function FinancingList({ payment, fallbackLabel }: { payment: Financing[]; fallb
         </li>
       ))}
     </ul>
+  )
+}
+
+// Small non-interactive "(i)" indicator — no dedicated tooltip widget exists elsewhere in the
+// codebase, so this reuses the native `title`-attribute-on-hover convention already used
+// throughout this file (e.g. the disabled-button explanations above).
+function InfoIcon({ text }: { text: string }) {
+  return (
+    <span
+      title={text}
+      aria-label={text}
+      className="flex h-3.5 w-3.5 shrink-0 cursor-help items-center justify-center rounded-full bg-gray-200 text-[9px] font-bold leading-none text-gray-500 hover:bg-gray-300"
+    >
+      i
+    </span>
   )
 }
 
@@ -123,7 +148,13 @@ function ToggleSwitch({
   )
 }
 
-export default function PlacementMenu({ map, placement, onClose }: Props) {
+export default function PlacementMenu({
+  map,
+  placement,
+  onClose,
+  onInhibitionRadiusVisibilityChange,
+  onTargetOptionHighlight,
+}: Props) {
   const [pos, setPos] = useState(() => map.project([placement.lng, placement.lat]))
   const buildOnPlacement = useBuildOnPlacement()
   // Separate mutation instances per action (target/enabled/prioritized) so each button's
@@ -143,6 +174,27 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
   // falling back to the snapshot only if the placement has since disappeared from the list.
   const occupant = allPlacements.find((p) => p.id === placement.id)?.occupant ?? placement.occupant
 
+  // Whether the "Inhibition Radius" row is hovered and/or pinned open (clicked) — either one
+  // is enough to show the radius circle on the map; hover alone doesn't persist a click.
+  const [radiusHovering, setRadiusHovering] = useState(false)
+  const [radiusPinned, setRadiusPinned] = useState(false)
+  const showInhibitionRadius = radiusHovering || radiusPinned
+  const trustPlacementId = occupant?.type === 'trust' ? occupant.placementId : null
+
+  const notifyRadiusVisibility = (visible: boolean) => {
+    if (trustPlacementId) onInhibitionRadiusVisibilityChange?.(visible ? trustPlacementId : null)
+  }
+
+  // Tell the map to stop drawing the radius once this trust's menu goes away — a real side
+  // effect on an external system (the map overlay), not derived state. App.tsx keys this
+  // component by placement id, so switching between placements remounts it fresh (resetting
+  // the pin) rather than reusing this instance; this cleanup only needs to cover unmount.
+  useEffect(() => {
+    return () => {
+      if (trustPlacementId) onInhibitionRadiusVisibilityChange?.(null)
+    }
+  }, [trustPlacementId, onInhibitionRadiusVisibilityChange])
+
   // Gate build/patch actions on permissions from GET /api/me so the UI can disable what the
   // user can't do, rather than letting them submit and only find out from a 403 afterwards.
   const { data: currentUser } = useCurrentUser()
@@ -152,17 +204,61 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
   const canBuildBase = placementBloc !== null && canWriteBloc(currentUser, placementBloc)
   const canBuildTrust = canWriteZone(currentUser, placement.zone)
   const canManageBase = occupant?.type === 'base' && canWriteBloc(currentUser, occupant.bloc)
+  // Keeps each option's placement id + coordinates alongside its label (not just the
+  // target's own base/trust id) so hovering an option in the dropdown below can highlight
+  // the right marker and fly the camera to it — a placement's occupant id alone doesn't
+  // say where it is on the map.
   const targetOptions = useMemo(() => {
     if (occupant?.type !== 'base') return []
     return allPlacements
-      .map((p) => p.occupant)
-      .filter((o): o is NonNullable<Placement['occupant']> => o !== null && !(o.type === 'base' && o.id === occupant.id))
+      .filter(
+        (p): p is Placement & { occupant: NonNullable<Placement['occupant']> } =>
+          p.occupant !== null && !(p.occupant.type === 'base' && p.occupant.id === occupant.id),
+      )
       // A base can only ever be targeted at an enemy structure — the backend rejects a
       // same-bloc target outright (units arriving at a friendly "target" would otherwise
       // never engage in normal combat, making the change look like it did nothing).
-      .filter((o) => (o.type === 'base' ? o.bloc : zones.find((z) => z.name === o.zone)?.bloc) !== occupant.bloc)
-      .map((o) => ({ key: `${o.type}:${o.id}`, label: o.type === 'base' ? `Base #${o.id} (${o.bloc})` : `Trust #${o.id} (${o.zone})` }))
+      .filter((p) => (p.occupant.type === 'base' ? p.occupant.bloc : zones.find((z) => z.name === p.occupant.zone)?.bloc) !== occupant.bloc)
+      .map((p) => ({
+        key: `${p.occupant.type}:${p.occupant.id}`,
+        label: p.occupant.type === 'base' ? `Base #${p.occupant.id} (${p.occupant.bloc})` : `Trust #${p.occupant.id} (${p.occupant.zone})`,
+        placementId: p.id,
+        lng: p.lng,
+        lat: p.lat,
+      }))
   }, [allPlacements, occupant, zones])
+
+  const targetOptionsByKey = useMemo(() => new Map(targetOptions.map((opt) => [opt.key, opt])), [targetOptions])
+  const targetDropdownOptions = useMemo(
+    () => [{ key: 'none', label: 'Nearest enemy unit' }, ...targetOptions.map(({ key, label }) => ({ key, label }))],
+    [targetOptions],
+  )
+
+  // Debounces the camera fly so a fast pass over several dropdown options doesn't
+  // queue up a flurry of competing fitBounds animations — only the option the
+  // pointer/keyboard settles on for a moment actually moves the map.
+  const flyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleTargetOptionHighlight = (key: string | null) => {
+    if (flyTimeoutRef.current) clearTimeout(flyTimeoutRef.current)
+    const opt = key ? targetOptionsByKey.get(key) : undefined
+    onTargetOptionHighlight?.(opt?.placementId ?? null)
+    if (!opt) return
+    flyTimeoutRef.current = setTimeout(() => {
+      flyToFrame(map, [
+        [placement.lng, placement.lat],
+        [opt.lng, opt.lat],
+      ])
+    }, 150)
+  }
+
+  // Stop highlighting/pending a fly once this menu goes away, mirroring the inhibition
+  // radius cleanup below — same "external side effect on the map" reasoning.
+  useEffect(() => {
+    return () => {
+      if (flyTimeoutRef.current) clearTimeout(flyTimeoutRef.current)
+      onTargetOptionHighlight?.(null)
+    }
+  }, [onTargetOptionHighlight])
 
   // Reset the picker to the base's current target whenever that target changes underneath us
   // (e.g. after our own mutation succeeds, or another player's edit is picked up by polling).
@@ -477,19 +573,14 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
               Target <span className="font-normal text-gray-400">— current: {targetLabel(occupant.target)}</span>
             </div>
             <div className="flex gap-2">
-              <select
+              <Dropdown
                 value={selectedTargetKey}
-                onChange={(e) => setSelectedTargetKey(e.target.value)}
+                options={targetDropdownOptions}
+                onChange={setSelectedTargetKey}
+                onHighlightChange={handleTargetOptionHighlight}
                 disabled={!canManageBase}
-                className="w-0 min-w-0 flex-1 truncate rounded border border-gray-300 px-2 py-1 text-sm disabled:opacity-50"
-              >
-                <option value="none">Nearest enemy unit</option>
-                {targetOptions.map((opt) => (
-                  <option key={opt.key} value={opt.key}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+                className="w-0 min-w-0 flex-1"
+              />
               <button
                 type="button"
                 disabled={!canManageBase || setBaseTarget.isPending || selectedTargetKey === targetKey(occupant.target)}
@@ -515,6 +606,28 @@ export default function PlacementMenu({ map, placement, onClose }: Props) {
         <div className="space-y-2">
           <div className="flex flex-wrap gap-1">
             <Badge tone="green">Produces: {occupant.resource}</Badge>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onMouseEnter={() => {
+                setRadiusHovering(true)
+                notifyRadiusVisibility(true)
+              }}
+              onMouseLeave={() => {
+                setRadiusHovering(false)
+                notifyRadiusVisibility(radiusPinned)
+              }}
+              onClick={() => {
+                const next = !radiusPinned
+                setRadiusPinned(next)
+                notifyRadiusVisibility(next || radiusHovering)
+              }}
+              className={`-mx-1 rounded px-1 py-0.5 text-xs font-medium text-gray-500 hover:bg-gray-100 ${showInhibitionRadius ? 'bg-gray-100' : ''}`}
+            >
+              Inhibition Radius <span className="font-normal text-gray-400">— {occupant.inhibitionRadius.toFixed(2)}</span>
+            </button>
+            <InfoIcon text="Enemy units inside this radius lower the trust's resource production." />
           </div>
           <div>
             <div className="mb-1 text-xs font-medium text-gray-500">Financing</div>

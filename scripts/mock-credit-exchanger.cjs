@@ -13,6 +13,12 @@
 // seeded with a starter self-subscription -- otherwise local testing would be
 // stuck waiting for combat to fund the very units needed to start combat.
 //
+// Also implements POST /api/evaluations/hourly, which scripts/run-production-cycle.sh
+// calls directly against the credit-exchanger. hourlyIncomeFor() already recomputes
+// hourly income live from tracked production + subscriptions on every /credits read,
+// so this route is a no-op that just acknowledges the call with the same response
+// shape the real credit-exchanger returns.
+//
 // Run with: node scripts/mock-credit-exchanger.js
 // Listens on http://127.0.0.1:18080 to match simulation.toml's credit_exchange_url.
 
@@ -107,6 +113,22 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && /^\/api\/users(\/[^/]+\/bookings)?$/.test(url.pathname)) {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end('{}')
+    return
+  }
+
+  // POST /api/evaluations/hourly -> rolls production into hourly income on the real
+  // credit-exchanger. hourlyIncomeFor() already does this live on every /credits read,
+  // so just acknowledge the call with the same response shape.
+  if (req.method === 'POST' && url.pathname === '/api/evaluations/hourly') {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(
+      JSON.stringify({
+        evaluatedUsers: production.size,
+        bookedSubscriptions: subscriptions.length,
+        blackoutNotifications: 0,
+        srOverflowNotifications: 0,
+      }),
+    )
     return
   }
 
